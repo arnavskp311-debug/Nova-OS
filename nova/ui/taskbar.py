@@ -1,0 +1,385 @@
+"""
+Futuristic Cyber Taskbar and App Launcher for NOVA OS.
+Hosts the Start Menu, active window task buttons, system status indicators, and live clock.
+"""
+
+from datetime import datetime
+from PySide6.QtWidgets import (
+    QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
+    QLabel, QFrame, QMenu, QWidgetAction, QLineEdit,
+    QGridLayout, QApplication
+)
+from PySide6.QtCore import Qt, QTimer, Signal, QPoint
+from PySide6.QtGui import QFont, QCursor
+from nova.config import APP_NAME
+
+class LauncherPopup(QFrame):
+    app_launch_requested = Signal(str)
+    exit_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("GlassPanel")
+        self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
+        self.setFixedSize(360, 480)
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Header
+        top_box = QHBoxLayout()
+        logo = QLabel("❖")
+        logo.setStyleSheet("font-size: 22px; color: #00f0ff; font-weight: bold;")
+        top_box.addWidget(logo)
+
+        header_text = QVBoxLayout()
+        title = QLabel(APP_NAME.upper())
+        title.setStyleSheet("font-weight: bold; font-size: 15px; color: #ffffff; letter-spacing: 1px;")
+        header_text.addWidget(title)
+
+        sub = QLabel("AI Trial Desktop Runtime")
+        sub.setObjectName("MutedLabel")
+        header_text.addWidget(sub)
+        top_box.addLayout(header_text)
+        top_box.addStretch()
+        layout.addLayout(top_box)
+
+        # Search box
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search apps or directives...")
+        self.search_box.textChanged.connect(self.filter_apps)
+        layout.addWidget(self.search_box)
+
+        # Apps Grid
+        self.apps = [
+            ("browser", "🌐 NOVA Cyber Browser", "Secure web runtime with Safe Chrome Integration"),
+            ("dashboard", "📊 Telemetry Dashboard", "Live CPU, RAM, Disk & Network diagnostics"),
+            ("chat", "🤖 NOVA AI Assistant", "Local LLM chat powered by Ollama"),
+            ("notes", "📝 NovaPad Knowledge", "Local notes & scheduled reminders"),
+            ("terminal", "💻 Cyber Safe Terminal", "Interactive sandboxed shell environment"),
+            ("files", "📁 Sandbox File Vault", "Project file explorer & storage health"),
+            ("settings", "⚙ Control Center", "Configure AI models, themes & security"),
+            ("clipboard", "📋 Clipboard History", "Browse and restore recent copied snippets"),
+            ("voice", "🎙 NOVA Voice Assistant", "Conversational AI voice powered by Kokoro-82M"),
+        ]
+
+        self.apps_container = QWidget()
+        self.apps_layout = QVBoxLayout(self.apps_container)
+        self.apps_layout.setContentsMargins(0, 0, 0, 0)
+        self.apps_layout.setSpacing(6)
+
+        self.app_buttons = []
+        for app_id, name, desc in self.apps:
+            btn = QPushButton(f"{name}\n{desc}")
+            btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding: 8px 12px;
+                    background: #111827;
+                    border: 1px solid rgba(255,255,255,0.06);
+                    border-radius: 6px;
+                    color: #cbd5e1;
+                    font-size: 12px;
+                }
+                QPushButton:hover {
+                    background: #1c273e;
+                    border-color: #00f0ff;
+                    color: #ffffff;
+                }
+            """)
+            btn.clicked.connect(lambda checked, a=app_id: self.on_app_clicked(a))
+            self.apps_layout.addWidget(btn)
+            self.app_buttons.append((app_id, name, desc, btn))
+
+        layout.addWidget(self.apps_container)
+        layout.addStretch()
+
+        # Bottom Safeguard & Exit Bar
+        footer = QHBoxLayout()
+        safe_tag = QLabel("🛡 Safe Windows Trial")
+        safe_tag.setStyleSheet("color: #00ff88; font-size: 11px; font-weight: 600;")
+        footer.addWidget(safe_tag)
+
+        footer.addStretch()
+
+        exit_btn = QPushButton("Exit NOVA OS")
+        exit_btn.setObjectName("DangerButton")
+        exit_btn.clicked.connect(self.on_exit_clicked)
+        footer.addWidget(exit_btn)
+
+        layout.addLayout(footer)
+
+    def filter_apps(self, text: str):
+        query = text.lower().strip()
+        for app_id, name, desc, btn in self.app_buttons:
+            match = not query or query in name.lower() or query in desc.lower()
+            btn.setVisible(match)
+
+    def on_app_clicked(self, app_id: str):
+        self.hide()
+        self.app_launch_requested.emit(app_id)
+
+    def on_exit_clicked(self):
+        self.hide()
+        self.exit_requested.emit()
+
+class Taskbar(QFrame):
+    app_launch_requested = Signal(str)
+    window_toggle_requested = Signal(str)
+    universal_search_requested = Signal()
+    quick_settings_requested = Signal()
+    clipboard_requested = Signal()
+    voice_assistant_requested = Signal()
+    exit_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.window_buttons = {}
+        self.setup_ui()
+
+        # Clock timer
+        self.clock_timer = QTimer(self)
+        self.clock_timer.timeout.connect(self.update_clock)
+        self.clock_timer.start(1000)
+        self.update_clock()
+
+    def setup_ui(self):
+        self.setFixedHeight(48)
+        self.setStyleSheet("""
+            QFrame {
+                background-color: rgba(10, 14, 24, 0.95);
+                border-top: 1px solid rgba(0, 240, 255, 0.25);
+            }
+        """)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 4, 10, 4)
+        layout.setSpacing(10)
+
+        # Start Button
+        self.start_btn = QPushButton("❖ NOVA")
+        self.start_btn.setFixedSize(90, 36)
+        self.start_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0052cc, stop:1 #00f0ff);
+                color: #ffffff;
+                font-weight: 800;
+                font-size: 13px;
+                border-radius: 6px;
+                border: 1px solid #00f0ff;
+                letter-spacing: 1px;
+            }
+            QPushButton:hover {
+                background: #ffffff;
+                color: #000000;
+            }
+        """)
+        self.launcher = LauncherPopup(self)
+        self.launcher.app_launch_requested.connect(self.app_launch_requested)
+        self.launcher.exit_requested.connect(self.exit_requested)
+        self.start_btn.clicked.connect(self.toggle_launcher)
+        layout.addWidget(self.start_btn)
+
+        # Universal Search Trigger Button
+        self.search_btn = QPushButton("🔍 Search")
+        self.search_btn.setFixedHeight(34)
+        self.search_btn.setToolTip("Universal Search (Ctrl+Space)")
+        self.search_btn.setStyleSheet("""
+            QPushButton {
+                background: #12192c;
+                border: 1px solid rgba(0, 240, 255, 0.4);
+                border-radius: 6px;
+                color: #00f0ff;
+                padding: 0 10px;
+                font-weight: 600;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #00f0ff;
+                color: #000000;
+            }
+        """)
+        self.search_btn.clicked.connect(self.universal_search_requested.emit)
+        layout.addWidget(self.search_btn)
+
+        # Voice Assistant Trigger Button
+        self.voice_btn = QPushButton("🎙 Voice")
+        self.voice_btn.setFixedHeight(34)
+        self.voice_btn.setToolTip("NOVA Voice Assistant (Ctrl+Shift+Space)")
+        self.voice_btn.setStyleSheet("""
+            QPushButton {
+                background: #1a1638;
+                border: 1px solid #b026ff;
+                border-radius: 6px;
+                color: #e2b3ff;
+                padding: 0 10px;
+                font-weight: 600;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: #b026ff;
+                color: #ffffff;
+            }
+        """)
+        self.voice_btn.clicked.connect(self.voice_assistant_requested.emit)
+        layout.addWidget(self.voice_btn)
+
+        # Quick Launchers
+        quick_icons = [
+            ("browser", "🌐", "NOVA Cyber Browser"),
+            ("dashboard", "📊", "Telemetry Dashboard"),
+            ("chat", "🤖", "NOVA AI Assistant"),
+            ("notes", "📝", "NovaPad Notes & Reminders"),
+            ("terminal", "💻", "Safe Cyber Terminal"),
+            ("files", "📁", "File Vault"),
+            ("settings", "⚙", "Control Center"),
+        ]
+        for app_id, icon, tip in quick_icons:
+            btn = QPushButton(icon)
+            btn.setFixedSize(34, 34)
+            btn.setToolTip(tip)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #12192c;
+                    border: 1px solid rgba(255,255,255,0.08);
+                    border-radius: 6px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    border-color: #00f0ff;
+                    background: #1a2542;
+                }
+            """)
+            btn.clicked.connect(lambda checked, a=app_id: self.app_launch_requested.emit(a))
+            layout.addWidget(btn)
+
+        # Clipboard History quick button
+        self.clip_btn = QPushButton("📋")
+        self.clip_btn.setFixedSize(34, 34)
+        self.clip_btn.setToolTip("Clipboard History (Ctrl+Shift+V)")
+        self.clip_btn.setStyleSheet("""
+            QPushButton {
+                background: #12192c;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                border-color: #00f0ff;
+                background: #1a2542;
+            }
+        """)
+        self.clip_btn.clicked.connect(self.clipboard_requested.emit)
+        layout.addWidget(self.clip_btn)
+
+        # Separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setStyleSheet("color: rgba(255, 255, 255, 0.1);")
+        layout.addWidget(sep)
+
+        # Active Tasks Bar
+        self.tasks_container = QWidget()
+        self.tasks_layout = QHBoxLayout(self.tasks_container)
+        self.tasks_layout.setContentsMargins(0, 0, 0, 0)
+        self.tasks_layout.setSpacing(6)
+        self.tasks_layout.addStretch()
+        layout.addWidget(self.tasks_container, stretch=1)
+
+        # Right Side System Tray
+        # AI Status Tag
+        self.ai_tag = QLabel("● AI READY")
+        self.ai_tag.setStyleSheet("color: #00ff88; font-weight: bold; font-size: 11px; padding: 2px 6px; background: #0c1422; border-radius: 4px; border: 1px solid rgba(0, 255, 136, 0.3);")
+        layout.addWidget(self.ai_tag)
+
+        # Quick Settings button
+        self.quick_settings_btn = QPushButton("⚡")
+        self.quick_settings_btn.setFixedSize(34, 34)
+        self.quick_settings_btn.setToolTip("Quick Settings, Power Profiles & Cache (⚡)")
+        self.quick_settings_btn.setStyleSheet("""
+            QPushButton {
+                background: #101728;
+                border: 1px solid rgba(255, 170, 0, 0.4);
+                border-radius: 6px;
+                color: #ffaa00;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #ffaa00;
+                color: #000000;
+            }
+        """)
+        self.quick_settings_btn.clicked.connect(self.quick_settings_requested.emit)
+        layout.addWidget(self.quick_settings_btn)
+
+        # Digital Clock
+        self.clock_lbl = QLabel()
+        self.clock_lbl.setCursor(Qt.PointingHandCursor)
+        self.clock_lbl.setToolTip("Click to view Quick Settings & Storage Diagnostics")
+        self.clock_lbl.setStyleSheet("color: #e2e8f0; font-family: 'Segoe UI', monospace; font-size: 12px; font-weight: 600; padding: 0 8px;")
+        self.clock_lbl.mousePressEvent = lambda e: self.quick_settings_requested.emit()
+        layout.addWidget(self.clock_lbl)
+
+        # Safe Exit Button
+        exit_icon_btn = QPushButton("⏻")
+        exit_icon_btn.setFixedSize(34, 34)
+        exit_icon_btn.setToolTip("Safely Close NOVA OS Trial")
+        exit_icon_btn.setObjectName("DangerButton")
+        exit_icon_btn.clicked.connect(self.exit_requested)
+        layout.addWidget(exit_icon_btn)
+
+    def toggle_launcher(self):
+        if self.launcher.isVisible():
+            self.launcher.hide()
+        else:
+            # Position above start button
+            global_pos = self.start_btn.mapToGlobal(QPoint(0, 0))
+            self.launcher.move(global_pos.x(), global_pos.y() - self.launcher.height() - 6)
+            self.launcher.show()
+            self.launcher.search_box.setFocus()
+
+    def update_clock(self):
+        now = datetime.now()
+        time_str = now.strftime("%I:%M:%S %p")
+        date_str = now.strftime("%b %d, %Y")
+        self.clock_lbl.setText(f"{time_str}\n{date_str}")
+
+    def update_active_windows(self, open_windows: dict):
+        """Updates taskbar buttons corresponding to open windows."""
+        # Clear existing buttons
+        for btn in self.window_buttons.values():
+            btn.deleteLater()
+        self.window_buttons.clear()
+
+        # Re-add stretch at end
+        while self.tasks_layout.count() > 0:
+            item = self.tasks_layout.takeAt(0)
+
+        for win_id, (frame, is_visible) in open_windows.items():
+            btn = QPushButton(f"{frame.icon_text} {frame.title_text}")
+            btn.setFixedHeight(32)
+            bg = "#1a2542" if is_visible else "#0d1322"
+            border = "#00f0ff" if is_visible else "rgba(255,255,255,0.1)"
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {bg};
+                    border: 1px solid {border};
+                    border-radius: 5px;
+                    color: #ffffff;
+                    padding: 0 10px;
+                    font-size: 11px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    border-color: #00f0ff;
+                }}
+            """)
+            btn.clicked.connect(lambda checked, w=win_id: self.window_toggle_requested.emit(w))
+            self.tasks_layout.addWidget(btn)
+            self.window_buttons[win_id] = btn
+
+        self.tasks_layout.addStretch()

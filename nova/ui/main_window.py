@@ -1,0 +1,496 @@
+"""
+Master Desktop Environment & Window Manager for NOVA OS.
+Coordinates the cybernetic desktop canvas, floating window frames, taskbar,
+and inter-application workflows.
+"""
+
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QMessageBox,
+    QApplication, QLabel
+)
+from PySide6.QtCore import Qt, QPoint, QRect, QTimer
+from PySide6.QtGui import (
+    QPainter, QColor, QPen, QRadialGradient, QBrush, QPixmap,
+    QKeySequence, QShortcut
+)
+
+from nova.config import APP_NAME, APP_VERSION, APP_SUBTITLE, DEFAULT_ACCENT, BROWSER_HOMEPAGE
+from nova.system_monitor import SystemMonitor
+from nova.ollama_client import OllamaClient
+from nova.database import init_db, get_setting, get_due_reminders, complete_reminder, purge_transient_cache
+from nova.ui.theme import get_stylesheet
+from nova.ui.taskbar import Taskbar
+from nova.ui.window_frame import WindowFrame
+from nova.ui.notifications import NotificationManager
+from nova.clipboard_manager import ClipboardListener, ClipboardHistoryDialog
+from nova.ui.widgets.universal_search import UniversalSearchDialog
+from nova.ui.widgets.quick_settings import QuickSettingsFlyout
+from nova.voice import VoiceEngine, VoiceOrchestrator, BrowserVoiceContext
+from nova.ui.voice_ui import NovaVoiceHUD
+
+from nova.ui.widgets.dashboard import DashboardWidget
+from nova.ui.widgets.chat import ChatWidget
+from nova.ui.widgets.notes import NotesWidget
+from nova.ui.widgets.terminal import TerminalWidget
+from nova.ui.widgets.file_viewer import FileViewerWidget
+from nova.ui.widgets.settings import SettingsWidget
+from nova.ui.widgets.browser import BrowserWidget
+
+class DesktopCanvas(QWidget):
+    """Futuristic desktop area with cybernetic grid and radial glow (Cached for 60fps rendering)."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("DesktopWidget")
+        self._cached_pixmap = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_cached_pixmap()
+
+    def _update_cached_pixmap(self):
+        w = max(1, self.width())
+        h = max(1, self.height())
+        pixmap = QPixmap(w, h)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Background gradient
+        bg_gradient = QRadialGradient(w / 2, h / 2, max(w, h) * 0.7)
+        bg_gradient.setColorAt(0.0, QColor("#0d1222"))
+        bg_gradient.setColorAt(0.6, QColor("#080b14"))
+        bg_gradient.setColorAt(1.0, QColor("#04060a"))
+        painter.fillRect(0, 0, w, h, bg_gradient)
+
+        # Subtle cyber grid
+        pen = QPen(QColor(0, 240, 255, 12))
+        pen.setWidth(1)
+        painter.setPen(pen)
+
+        grid_size = 45
+        for x in range(0, w, grid_size):
+            painter.drawLine(x, 0, x, h)
+        for y in range(0, h, grid_size):
+            painter.drawLine(0, y, w, y)
+
+        # Subtle watermarks
+        watermark_pen = QPen(QColor(255, 255, 255, 35))
+        painter.setPen(watermark_pen)
+        painter.drawText(
+            QRect(w - 420, h - 35, 400, 25),
+            Qt.AlignRight | Qt.AlignVCenter,
+            "NOVA OS [AI TRIAL SANDBOX] • SAFE ON WINDOWS"
+        )
+        painter.end()
+        self._cached_pixmap = pixmap
+
+    def paintEvent(self, event):
+        if self._cached_pixmap is None or self._cached_pixmap.size() != self.size():
+            self._update_cached_pixmap()
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self._cached_pixmap)
+
+class MainWindow(QMainWindow):
+    def __init__(self, initial_url: str = None):
+        super().__init__()
+        self.setWindowTitle(f"{APP_NAME} - {APP_SUBTITLE}")
+        self.resize(1280, 820)
+        self.setMinimumSize(960, 640)
+
+        # Initialize Core Services
+        init_db()
+        self.system_monitor = SystemMonitor()
+        saved_host = get_setting("ollama_host", "http://127.0.0.1:11434")
+        self.ollama_client = OllamaClient(host=saved_host)
+
+        # Open Window Tracking: win_id -> (WindowFrame, is_visible)
+        self.windows = {}
+        self._stagger_offset = 0
+
+        self.setup_ui()
+        self.setup_shortcuts()
+        self.apply_theme(get_setting("accent_color", DEFAULT_ACCENT))
+
+        # Check due reminders periodically (every 10 seconds)
+        self.reminder_timer = QTimer(self)
+        self.reminder_timer.timeout.connect(self._check_reminders)
+        self.reminder_timer.start(10000)
+
+        # Welcome notification toast
+        QTimer.singleShot(1200, lambda: self.notify(
+            "NOVA OS Online",
+            "Hardware Profile: Intel Core i3 • 4 GB RAM Mode Active\nPress Ctrl+Space for Universal Search",
+            "info",
+            5000
+        ))
+
+        if initial_url:
+            self.launch_app("browser", initial_pos=(60, 40), initial_size=(900, 680), url=initial_url)
+            self.launch_app("dashboard", initial_pos=(30, 30), initial_size=(560, 480))
+        else:
+            # Launch default desktop windows
+            self.launch_app("dashboard", initial_pos=(30, 30), initial_size=(620, 520))
+            self.launch_app("chat", initial_pos=(670, 30), initial_size=(560, 680))
+
+    def setup_ui(self):
+        # Central Container
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Desktop Workspace Canvas
+        self.desktop_canvas = DesktopCanvas(central)
+        main_layout.addWidget(self.desktop_canvas, stretch=1)
+
+        # Notification Stack Manager (HUD overlay)
+        self.notification_manager = NotificationManager(self.desktop_canvas)
+
+        # Clipboard Listener and History HUD
+        self.clipboard_listener = ClipboardListener(self)
+        self.clipboard_dialog = ClipboardHistoryDialog(self)
+        self.clipboard_dialog.snippet_selected.connect(self._on_clipboard_snippet_selected)
+
+        # Universal Search HUD Dialog
+        self.search_dialog = UniversalSearchDialog(self)
+        self.search_dialog.app_launch_requested.connect(self._on_search_launch_requested)
+        self.search_dialog.notification_requested.connect(self.notify)
+
+        # Quick Settings Flyout Panel
+        self.quick_settings = QuickSettingsFlyout(self)
+        self.quick_settings.theme_changed.connect(self.apply_theme)
+        self.quick_settings.performance_mode_changed.connect(self.apply_performance_mode)
+        self.quick_settings.open_full_settings.connect(lambda: self.launch_app("settings"))
+        self.quick_settings.notification_requested.connect(self.notify)
+
+        # Siri-like NOVA Voice Engine, Orchestrator & HUD
+        self.voice_engine = VoiceEngine(parent=self)
+        self.browser_voice_context = BrowserVoiceContext(parent=self)
+        self.voice_orchestrator = VoiceOrchestrator(self.ollama_client, parent=self)
+        self.voice_orchestrator.register_action_handler("launch_app", self.launch_app)
+        self.voice_orchestrator.register_action_handler("purge_cache", purge_transient_cache)
+        self.voice_hud = NovaVoiceHUD(
+            self.voice_engine,
+            self.voice_orchestrator,
+            browser_context=self.browser_voice_context,
+            parent=self
+        )
+
+        # Bottom Taskbar
+        self.taskbar = Taskbar(central)
+        self.taskbar.app_launch_requested.connect(self.launch_app)
+        self.taskbar.window_toggle_requested.connect(self.toggle_window)
+        self.taskbar.universal_search_requested.connect(self.toggle_search)
+        self.taskbar.quick_settings_requested.connect(self.toggle_quick_settings)
+        self.taskbar.clipboard_requested.connect(self.toggle_clipboard_history)
+        self.taskbar.voice_assistant_requested.connect(self.toggle_voice_assistant)
+        self.taskbar.exit_requested.connect(self.confirm_exit)
+        main_layout.addWidget(self.taskbar)
+
+    def setup_shortcuts(self):
+        # Siri-Style NOVA Voice Assistant (Ctrl+Shift+Space or F4)
+        QShortcut(QKeySequence("Ctrl+Shift+Space"), self, self.toggle_voice_assistant)
+        QShortcut(QKeySequence("F4"), self, self.toggle_voice_assistant)
+
+        # Universal Search HUD (Spotlight)
+        QShortcut(QKeySequence("Ctrl+Space"), self, self.toggle_search)
+        QShortcut(QKeySequence("Alt+Space"), self, self.toggle_search)
+
+        # Clipboard History HUD
+        QShortcut(QKeySequence("Ctrl+Shift+V"), self, self.toggle_clipboard_history)
+
+        # Quick Settings Flyout
+        QShortcut(QKeySequence("Ctrl+Shift+S"), self, self.toggle_quick_settings)
+
+        # Fullscreen Toggle
+        QShortcut(QKeySequence("F11"), self, self.toggle_fullscreen)
+
+        # Safe Exit
+        QShortcut(QKeySequence("Ctrl+Q"), self, self.confirm_exit)
+
+        # Fast App Switching (Ctrl+1 to Ctrl+7)
+        QShortcut(QKeySequence("Ctrl+1"), self, lambda: self.launch_app("dashboard"))
+        QShortcut(QKeySequence("Ctrl+2"), self, lambda: self.launch_app("chat"))
+        QShortcut(QKeySequence("Ctrl+3"), self, lambda: self.launch_app("browser"))
+        QShortcut(QKeySequence("Ctrl+4"), self, lambda: self.launch_app("notes"))
+        QShortcut(QKeySequence("Ctrl+5"), self, lambda: self.launch_app("terminal"))
+        QShortcut(QKeySequence("Ctrl+6"), self, lambda: self.launch_app("files"))
+        QShortcut(QKeySequence("Ctrl+7"), self, lambda: self.launch_app("settings"))
+
+    def apply_theme(self, accent_name: str):
+        self.setStyleSheet(get_stylesheet(accent_name))
+
+    def apply_performance_mode(self, mode: str):
+        """Propagates performance mode to active widgets."""
+        if "dashboard" in self.windows:
+            frame, _ = self.windows["dashboard"]
+            if hasattr(frame, "content_widget") and hasattr(frame.content_widget, "set_performance_mode"):
+                frame.content_widget.set_performance_mode(mode)
+
+    def launch_app(self, app_id: str, initial_pos=None, initial_size=None, url: str = None):
+        """Creates or restores an application window on the desktop canvas."""
+        # Non-window utility integrations
+        if app_id == "voice":
+            self.toggle_voice_assistant()
+            return
+        if app_id == "clipboard":
+            self.toggle_clipboard_history()
+            return
+        if app_id == "reminders":
+            self.launch_app("notes")
+            if "notes" in self.windows:
+                frame, _ = self.windows["notes"]
+                if hasattr(frame, "content_widget") and hasattr(frame.content_widget, "tabs"):
+                    frame.content_widget.tabs.setCurrentIndex(1)
+            return
+
+        # If already instantiated, toggle visible and bring to front
+        if app_id in self.windows:
+            frame, _ = self.windows[app_id]
+            frame.show()
+            frame.raise_()
+            self.windows[app_id] = (frame, True)
+            self.taskbar.update_active_windows(self.windows)
+            if app_id == "browser" and url and hasattr(frame, "content_widget"):
+                frame.content_widget.navigate_to(url)
+            return
+
+        # Instantiate Widget
+        if app_id == "browser":
+            target_url = url or BROWSER_HOMEPAGE
+            widget = BrowserWidget(initial_url=target_url, ollama_client=self.ollama_client)
+            widget.voice_requested.connect(self.toggle_voice_assistant)
+            if hasattr(self, "browser_voice_context"):
+                self.browser_voice_context.set_browser_widget(widget)
+            title = "NOVA CYBER BROWSER"
+            icon = "🌐"
+            default_size = (920, 680)
+        elif app_id == "dashboard":
+            widget = DashboardWidget(self.system_monitor)
+            perf_mode = get_setting("performance_mode", "Balanced")
+            widget.set_performance_mode(perf_mode)
+            title = "SYSTEM TELEMETRY"
+            icon = "📊"
+            default_size = (620, 520)
+        elif app_id == "chat":
+            widget = ChatWidget(self.ollama_client)
+            title = "NOVA AI TRANSMISSION"
+            icon = "🤖"
+            default_size = (560, 680)
+        elif app_id == "notes":
+            widget = NotesWidget(self.ollama_client)
+            title = "NOVAPAD KNOWLEDGE"
+            icon = "📝"
+            default_size = (680, 500)
+        elif app_id == "terminal":
+            widget = TerminalWidget()
+            title = "SECURE CYBER TERMINAL"
+            icon = "💻"
+            default_size = (640, 460)
+        elif app_id == "files":
+            widget = FileViewerWidget()
+            title = "SANDBOX FILE VAULT"
+            icon = "📁"
+            default_size = (620, 480)
+        elif app_id == "settings":
+            widget = SettingsWidget(self.ollama_client)
+            widget.theme_changed.connect(self.apply_theme)
+            widget.performance_mode_changed.connect(self.apply_performance_mode)
+            title = "CONTROL CENTER"
+            icon = "⚙"
+            default_size = (540, 560)
+        else:
+            return
+
+        # Create Window Frame container
+        frame = WindowFrame(title, widget, icon_text=icon, parent=self.desktop_canvas)
+        frame.window_closed.connect(lambda f, a=app_id: self.on_window_closed(a))
+        frame.window_minimized.connect(lambda f, a=app_id: self.on_window_minimized(a))
+        frame.window_focused.connect(lambda f, a=app_id: self.on_window_focused(a))
+
+        # Position and size
+        size = initial_size or default_size
+        frame.resize(size[0], size[1])
+
+        if initial_pos:
+            frame.move(initial_pos[0], initial_pos[1])
+        else:
+            self._stagger_offset = (self._stagger_offset + 30) % 180
+            pos_x = 80 + self._stagger_offset
+            pos_y = 50 + self._stagger_offset
+            frame.move(pos_x, pos_y)
+
+        frame.show()
+        frame.raise_()
+        self.windows[app_id] = (frame, True)
+        self.taskbar.update_active_windows(self.windows)
+
+    def toggle_window(self, app_id: str):
+        if app_id not in self.windows:
+            return
+        frame, is_visible = self.windows[app_id]
+        if is_visible:
+            # If active and on top, minimize; otherwise raise
+            frame.hide()
+            self.windows[app_id] = (frame, False)
+        else:
+            frame.show()
+            frame.raise_()
+            self.windows[app_id] = (frame, True)
+        self.taskbar.update_active_windows(self.windows)
+
+    def on_window_closed(self, app_id: str):
+        if app_id in self.windows:
+            frame, _ = self.windows[app_id]
+            self.windows[app_id] = (frame, False)
+            self.taskbar.update_active_windows(self.windows)
+
+    def on_window_minimized(self, app_id: str):
+        if app_id in self.windows:
+            frame, _ = self.windows[app_id]
+            self.windows[app_id] = (frame, False)
+            self.taskbar.update_active_windows(self.windows)
+
+    def on_window_focused(self, app_id: str):
+        if app_id in self.windows:
+            frame, _ = self.windows[app_id]
+            self.windows[app_id] = (frame, True)
+            self.taskbar.update_active_windows(self.windows)
+
+    def toggle_search(self):
+        """Toggles the Spotlight-style Universal Search HUD."""
+        if self.search_dialog.isVisible():
+            self.search_dialog.hide()
+        else:
+            self.search_dialog.show_centered(self)
+
+    def toggle_quick_settings(self):
+        """Toggles the Quick Settings flyout panel."""
+        if self.quick_settings.isVisible():
+            self.quick_settings.hide()
+        else:
+            self.quick_settings.refresh_status()
+            btn = self.taskbar.quick_settings_btn
+            g_pos = btn.mapToGlobal(QPoint(0, 0))
+            x = max(10, g_pos.x() - self.quick_settings.width() + btn.width())
+            y = max(10, g_pos.y() - self.quick_settings.height() - 8)
+            self.quick_settings.move(x, y)
+            self.quick_settings.show()
+            self.quick_settings.raise_()
+
+    def toggle_clipboard_history(self):
+        """Toggles the Clipboard History HUD popup."""
+        if self.clipboard_dialog.isVisible():
+            self.clipboard_dialog.hide()
+        else:
+            self.clipboard_dialog.load_history()
+            btn = self.taskbar.clip_btn
+            g_pos = btn.mapToGlobal(QPoint(0, 0))
+            x = max(10, g_pos.x() - 100)
+            y = max(10, g_pos.y() - self.clipboard_dialog.height() - 8)
+            self.clipboard_dialog.move(x, y)
+            self.clipboard_dialog.show()
+            self.clipboard_dialog.raise_()
+
+    def toggle_voice_assistant(self):
+        """Toggles the Siri-style NOVA Voice HUD assistant."""
+        if hasattr(self, "voice_hud"):
+            if self.voice_hud.isVisible():
+                self.voice_hud.stop_current_action()
+                self.voice_hud.hide()
+            else:
+                # Sync browser widget if browser window is currently open
+                if "browser" in self.windows:
+                    frame, _ = self.windows["browser"]
+                    if hasattr(frame, "content_widget") and hasattr(self, "browser_voice_context"):
+                        self.browser_voice_context.set_browser_widget(frame.content_widget)
+                self.voice_hud.show_centered(self)
+
+    def toggle_fullscreen(self):
+        """Toggles between fullscreen and normal desktop trial mode."""
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
+    def notify(self, title: str, message: str, level: str = "info", duration_ms: int = 4000):
+        """Dispatches a non-blocking cybernetic toast notification to the canvas HUD."""
+        if hasattr(self, "notification_manager") and self.notification_manager:
+            return self.notification_manager.notify(title, message, level=level, duration_ms=duration_ms)
+
+    def _on_clipboard_snippet_selected(self, text: str):
+        clip = QApplication.clipboard()
+        if clip:
+            clip.setText(text)
+        preview = (text[:45] + "..") if len(text) > 45 else text
+        self.notify("CLIPBOARD READY", f"Loaded into clipboard:\n{preview}", "info", 2500)
+
+    def _on_search_launch_requested(self, app_id: str, params: dict):
+        if app_id == "browser" and "url" in params:
+            self.launch_app("browser", url=params["url"])
+        else:
+            self.launch_app(app_id)
+
+    def _check_reminders(self):
+        try:
+            due = get_due_reminders()
+            for r in due:
+                priority = r.get("priority", "NORMAL")
+                content = r.get("content", "Reminder")
+                self.notify(f"🔔 DUE REMINDER [{priority}]", content, "reminder", 8000)
+                complete_reminder(r["id"])
+        except Exception:
+            pass
+
+    def _cleanup_on_close(self):
+        """Stops background threads and releases resources on shutdown."""
+        if hasattr(self, "reminder_timer") and self.reminder_timer.isActive():
+            self.reminder_timer.stop()
+
+        if hasattr(self, "voice_hud"):
+            self.voice_hud.stop_current_action()
+            self.voice_hud.hide()
+
+        if hasattr(self, "voice_engine"):
+            self.voice_engine.stop_speaking()
+
+        for app_id, (frame, _) in list(self.windows.items()):
+            if hasattr(frame, "content_widget"):
+                cw = frame.content_widget
+                if hasattr(cw, "worker") and cw.worker:
+                    try:
+                        cw.worker.stop()
+                    except Exception:
+                        pass
+                if hasattr(cw, "cleanup"):
+                    cw.cleanup()
+
+    def confirm_exit(self):
+        reply = QMessageBox.question(
+            self,
+            "Close NOVA OS",
+            "Safely exit the NOVA OS AI Trial session and return to Windows?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self._cleanup_on_close()
+            QApplication.quit()
+
+    def closeEvent(self, event):
+        # Allow non-spontaneous (programmatic) close without blocking modal
+        if not event.spontaneous():
+            self._cleanup_on_close()
+            event.accept()
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Close NOVA OS",
+            "Exit NOVA OS AI Trial session?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self._cleanup_on_close()
+            event.accept()
+        else:
+            event.ignore()

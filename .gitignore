@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# NOVA OS Local Data & Runtime
+data/logs/*
+data/browser_profile/*
+data/audio_cache/*
+data/backups/*
+data/*.db*
+data/models/
+!data/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db

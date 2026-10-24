@@ -47,8 +47,8 @@ class KokoroChunkWorker(QThread):
     generation_stopped = Signal()
     error_occurred = Signal(str)
 
-    def __init__(self, kokoro_engine, text: str, voice: str = "af_nova", speed: float = 1.0):
-        super().__init__()
+    def __init__(self, kokoro_engine, text: str, voice: str = "af_nova", speed: float = 1.0, parent=None):
+        super().__init__(parent)
         self.engine = kokoro_engine
         self.text = text
         self.voice = voice
@@ -252,7 +252,8 @@ class KokoroTTSEngine(QObject):
             self,
             text=text,
             voice=voice or self.default_voice,
-            speed=speed or self.speed
+            speed=speed or self.speed,
+            parent=self
         )
 
     def _get_cache_key(self, text: str, voice: str, speed: float) -> str:

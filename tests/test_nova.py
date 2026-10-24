@@ -469,6 +469,15 @@ def test_nova_voice_system():
     engine = VoiceEngine()
     hud = NovaVoiceHUD(engine, orchestrator, browser_context=b_ctx)
     assert hud is not None
+
+    # 10. Rapid Concurrency & Safe Thread Interruption Test
+    # Test rapid sequential speaking calls and immediate interruption
+    engine.speak("Sentence one.", queue=True)
+    engine.speak("Sentence two.", queue=True)
+    engine.stop_speaking()
+    assert engine._is_synthesizing is False
+
+    engine.cleanup()
     hud.close()
 
     print("  -> NOVA Voice system tests PASSED.")

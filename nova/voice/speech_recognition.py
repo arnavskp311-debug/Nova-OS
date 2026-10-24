@@ -20,8 +20,8 @@ class STTWorker(QThread):
     completed = Signal(str)
     error = Signal(str)
 
-    def __init__(self, audio_data: np.ndarray, sample_rate: int = 16000):
-        super().__init__()
+    def __init__(self, audio_data: np.ndarray, sample_rate: int = 16000, parent=None):
+        super().__init__(parent)
         self.audio_data = audio_data
         self.sample_rate = sample_rate
 
@@ -79,14 +79,19 @@ class SpeechRecognizer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_worker: Optional[STTWorker] = None
+        self._tracked_workers = []
 
     def transcribe_audio_buffer(self, audio_data: np.ndarray, sample_rate: int = 16000):
         """Dispatches an audio buffer to a background STT worker."""
         self.transcription_started.emit()
-        self._current_worker = STTWorker(audio_data, sample_rate)
-        self._current_worker.completed.connect(self._on_worker_completed)
-        self._current_worker.error.connect(self._on_worker_error)
-        self._current_worker.start()
+        worker = STTWorker(audio_data, sample_rate, parent=self)
+        self._current_worker = worker
+        self._tracked_workers.append(worker)
+
+        worker.completed.connect(self._on_worker_completed)
+        worker.error.connect(self._on_worker_error)
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        worker.start()
 
     def transcribe_text_direct(self, text: str):
         """Immediate keyboard fallback: processes text input directly as spoken utterance."""
@@ -96,8 +101,27 @@ class SpeechRecognizer(QObject):
 
     def _on_worker_completed(self, text: str):
         self.transcription_completed.emit(text)
-        self._current_worker = None
 
     def _on_worker_error(self, err_msg: str):
         self.transcription_error.emit(err_msg)
+
+    def _cleanup_worker(self, worker):
+        if worker in self._tracked_workers:
+            self._tracked_workers.remove(worker)
+        if self._current_worker is worker:
+            self._current_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
+
+    def cleanup(self):
+        """Waits on any in-flight transcription workers during teardown."""
+        for worker in list(self._tracked_workers):
+            if worker.isRunning():
+                try:
+                    worker.wait(300)
+                except Exception:
+                    pass
+        self._tracked_workers.clear()
         self._current_worker = None

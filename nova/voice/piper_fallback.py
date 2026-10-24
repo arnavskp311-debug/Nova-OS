@@ -31,8 +31,8 @@ class PiperChunkWorker(QThread):
     generation_stopped = Signal()
     error_occurred = Signal(str)
 
-    def __init__(self, piper_engine, text: str, speed: float = 1.0):
-        super().__init__()
+    def __init__(self, piper_engine, text: str, speed: float = 1.0, parent=None):
+        super().__init__(parent)
         self.engine = piper_engine
         self.text = text
         self.speed = speed
@@ -165,7 +165,7 @@ class PiperTTSEngine(QObject):
         return samples, self.sample_rate
 
     def create_stream_worker(self, text: str, speed: Optional[float] = None) -> PiperChunkWorker:
-        return PiperChunkWorker(self, text=text, speed=speed or self.speed)
+        return PiperChunkWorker(self, text=text, speed=speed or self.speed, parent=self)
 
     def clear_cache(self) -> int:
         deleted = 0

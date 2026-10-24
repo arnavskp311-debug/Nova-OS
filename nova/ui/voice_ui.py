@@ -500,10 +500,10 @@ class NovaVoiceHUD(QFrame):
         self.nova_bubble.setText(current + token)
 
     def _on_sentence_to_speak(self, sentence: str):
-        # Forward sentence directly to voice engine for audio playback
+        # Forward sentence directly to voice engine for audio playback with queue support
         voice_id = self.voice_combo.currentData() or "af_nova"
         speed = self.speed_slider.value() / 100.0
-        self.voice_engine.speak(sentence, voice=voice_id, speed=speed)
+        self.voice_engine.speak(sentence, voice=voice_id, speed=speed, queue=True)
 
     def _on_reply_complete(self, full_text: str):
         self.nova_bubble.setText(full_text)

@@ -35,8 +35,8 @@ class OllamaVoiceStreamWorker(QThread):
     response_completed = Signal(str)      # Full response text
     error_occurred = Signal(str)
 
-    def __init__(self, ollama_client: OllamaClient, messages: List[Dict[str, str]], model: str = DEFAULT_MODEL):
-        super().__init__()
+    def __init__(self, ollama_client: OllamaClient, messages: List[Dict[str, str]], model: str = DEFAULT_MODEL, parent=None):
+        super().__init__(parent)
         self.client = ollama_client
         self.messages = messages
         self.model = model
@@ -102,6 +102,7 @@ class VoiceOrchestrator(QObject):
         self.active_model = DEFAULT_MODEL
         self.chat_history: List[Dict[str, str]] = []
         self._stream_worker: Optional[OllamaVoiceStreamWorker] = None
+        self._tracked_workers: List[QThread] = []
         self._is_interrupted = False
         self.deterministic_handlers = {}
 
@@ -157,20 +158,35 @@ class VoiceOrchestrator(QObject):
         messages.extend(self.chat_history[-4:])
         messages.append({"role": "user", "content": query})
 
-        # Cancel previous if running
+        # Cancel previous if running without dropping reference immediately
         if self._stream_worker and self._stream_worker.isRunning():
             self._stream_worker.cancel()
 
-        self._stream_worker = OllamaVoiceStreamWorker(
+        worker = OllamaVoiceStreamWorker(
             self.ollama_client,
             messages=messages,
-            model=self.active_model
+            model=self.active_model,
+            parent=self
         )
-        self._stream_worker.token_emitted.connect(self.nova_reply_token)
-        self._stream_worker.sentence_ready.connect(self._on_sentence_ready)
-        self._stream_worker.response_completed.connect(self._on_response_completed)
-        self._stream_worker.error_occurred.connect(self._on_error)
-        self._stream_worker.start()
+        self._stream_worker = worker
+        self._tracked_workers.append(worker)
+
+        worker.token_emitted.connect(self.nova_reply_token)
+        worker.sentence_ready.connect(self._on_sentence_ready)
+        worker.response_completed.connect(self._on_response_completed)
+        worker.error_occurred.connect(self._on_error)
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        worker.start()
+
+    def _cleanup_worker(self, worker):
+        if worker in self._tracked_workers:
+            self._tracked_workers.remove(worker)
+        if self._stream_worker is worker:
+            self._stream_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
 
     def _on_sentence_ready(self, sentence: str):
         if not self._is_interrupted:
@@ -192,7 +208,7 @@ class VoiceOrchestrator(QObject):
         self._is_interrupted = True
         if self._stream_worker and self._stream_worker.isRunning():
             self._stream_worker.cancel()
-            self._stream_worker = None
+            # Reference is retained in self._tracked_workers until finished fires!
         self.state_changed.emit("idle")
 
     def _check_deterministic_command(self, query: str) -> Optional[str]:

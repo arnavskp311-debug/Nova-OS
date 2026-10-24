@@ -452,7 +452,7 @@ class MainWindow(QMainWindow):
             self.voice_hud.hide()
 
         if hasattr(self, "voice_engine"):
-            self.voice_engine.stop_speaking()
+            self.voice_engine.cleanup()
 
         for app_id, (frame, _) in list(self.windows.items()):
             if hasattr(frame, "content_widget"):

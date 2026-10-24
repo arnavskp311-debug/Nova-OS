@@ -31,8 +31,8 @@ class OllamaStreamWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
 
-    def __init__(self, client: OllamaClient, messages: List[Dict[str, str]], model: str):
-        super().__init__()
+    def __init__(self, client: OllamaClient, messages: List[Dict[str, str]], model: str, parent=None):
+        super().__init__(parent)
         self.client = client
         self.messages = messages
         self.model = model
@@ -57,8 +57,8 @@ class ModelDiscoveryWorker(QThread):
     """Background worker to discover models without blocking UI thread."""
     discovery_finished = Signal(bool, list)
 
-    def __init__(self, client: OllamaClient, force: bool = False):
-        super().__init__()
+    def __init__(self, client: OllamaClient, force: bool = False, parent=None):
+        super().__init__(parent)
         self.client = client
         self.force = force
 
@@ -159,6 +159,7 @@ class ChatWidget(QWidget):
         self.ollama_client = ollama_client
         self.active_session_id = None
         self.worker: Optional[OllamaStreamWorker] = None
+        self._tracked_workers: List[QThread] = []
         self.current_bubble: Optional[MessageBubble] = None
         self.voice = VoiceEngine(self)
 
@@ -321,9 +322,12 @@ class ChatWidget(QWidget):
         self.status_dot.setStyleSheet("color: #ffaa00; font-size: 14px;")
         self.status_text.setText("Connecting...")
         
-        self.discovery_worker = ModelDiscoveryWorker(self.ollama_client, force=force)
-        self.discovery_worker.discovery_finished.connect(self.on_models_discovered)
-        self.discovery_worker.start()
+        worker = ModelDiscoveryWorker(self.ollama_client, force=force, parent=self)
+        self.discovery_worker = worker
+        self._tracked_workers.append(worker)
+        worker.discovery_finished.connect(self.on_models_discovered)
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        worker.start()
 
     @Slot(bool, list)
     def on_models_discovered(self, is_online: bool, models: list):
@@ -448,12 +452,18 @@ class ChatWidget(QWidget):
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
 
-        self.worker = OllamaStreamWorker(self.ollama_client, history, selected_model)
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+
+        worker = OllamaStreamWorker(self.ollama_client, history, selected_model, parent=self)
+        self.worker = worker
+        self._tracked_workers.append(worker)
         self.accumulated_text = ""
-        self.worker.chunk_received.connect(self.on_chunk_received)
-        self.worker.finished.connect(self.on_stream_finished)
-        self.worker.error.connect(self.on_stream_error)
-        self.worker.start()
+        worker.chunk_received.connect(self.on_chunk_received)
+        worker.finished.connect(self.on_stream_finished)
+        worker.error.connect(self.on_stream_error)
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        worker.start()
 
     @Slot(str)
     def on_chunk_received(self, chunk: str):
@@ -471,7 +481,6 @@ class ChatWidget(QWidget):
         if self.voice and self.voice.enabled and full_text.strip():
             self.voice.speak(full_text.strip())
         self.current_bubble = None
-        self.worker = None
 
     @Slot(str)
     def on_stream_error(self, err_msg: str):
@@ -480,7 +489,18 @@ class ChatWidget(QWidget):
         if self.current_bubble:
             self.current_bubble.update_text(f"[Transmission Interrupted: {err_msg}]")
         self.current_bubble = None
-        self.worker = None
+
+    def _cleanup_worker(self, worker):
+        if worker in self._tracked_workers:
+            self._tracked_workers.remove(worker)
+        if self.worker is worker:
+            self.worker = None
+        if hasattr(self, "discovery_worker") and self.discovery_worker is worker:
+            self.discovery_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
 
     def on_stop_clicked(self):
         if self.worker:

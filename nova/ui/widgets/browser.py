@@ -41,8 +41,8 @@ class AIPageWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
 
-    def __init__(self, client: OllamaClient, prompt: str, model: str = DEFAULT_MODEL):
-        super().__init__()
+    def __init__(self, client: OllamaClient, prompt: str, model: str = DEFAULT_MODEL, parent=None):
+        super().__init__(parent)
         self.client = client
         self.prompt = prompt
         self.model = model
@@ -1049,11 +1049,20 @@ class BrowserWidget(QWidget):
         self.accumulated_ai_text = ""
         self.ai_result_view.clear()
 
-        self.ai_worker = AIPageWorker(self.ollama_client, prompt)
-        self.ai_worker.chunk_received.connect(self.on_ai_chunk)
-        self.ai_worker.finished.connect(self.on_ai_finished)
-        self.ai_worker.error.connect(self.on_ai_error)
-        self.ai_worker.start()
+        # Stop existing worker if running
+        self.halt_ai_worker()
+
+        worker = AIPageWorker(self.ollama_client, prompt, parent=self)
+        self.ai_worker = worker
+        if not hasattr(self, "_tracked_ai_workers"):
+            self._tracked_ai_workers = []
+        self._tracked_ai_workers.append(worker)
+
+        worker.chunk_received.connect(self.on_ai_chunk)
+        worker.finished.connect(self.on_ai_finished)
+        worker.error.connect(self.on_ai_error)
+        worker.finished.connect(lambda w=worker: self._cleanup_ai_worker(w))
+        worker.start()
 
     @Slot(str)
     def on_ai_chunk(self, chunk: str):
@@ -1064,17 +1073,25 @@ class BrowserWidget(QWidget):
     def on_ai_finished(self, full_text: str):
         self.ai_status_lbl.setText("Analysis Complete")
         self.ai_halt_btn.setEnabled(False)
-        self.ai_worker = None
 
     @Slot(str)
     def on_ai_error(self, err: str):
         self.ai_status_lbl.setText("Error")
         self.ai_halt_btn.setEnabled(False)
         self.ai_result_view.setPlainText(f"[AI Analysis Error: {err}]")
-        self.ai_worker = None
+
+    def _cleanup_ai_worker(self, worker):
+        if hasattr(self, "_tracked_ai_workers") and worker in self._tracked_ai_workers:
+            self._tracked_ai_workers.remove(worker)
+        if self.ai_worker is worker:
+            self.ai_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
 
     def halt_ai_worker(self):
-        if self.ai_worker:
+        if self.ai_worker and self.ai_worker.isRunning():
             self.ai_worker.cancel()
             self.ai_status_lbl.setText("Halted")
             self.ai_halt_btn.setEnabled(False)
@@ -1082,6 +1099,10 @@ class BrowserWidget(QWidget):
     def cleanup(self):
         """Releases WebEngine tabs and background workers."""
         self.halt_ai_worker()
+        if hasattr(self, "_tracked_ai_workers"):
+            for w in list(self._tracked_ai_workers):
+                if w.isRunning():
+                    w.wait(200)
         for i in range(self.tabs.count()):
             w = self.tabs.widget(i)
             if w and hasattr(w, "cleanup"):

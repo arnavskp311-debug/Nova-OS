@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-from nova.config import DB_PATH, BACKUPS_DIR, BROWSER_PROFILE_DIR, LOGS_DIR
+from nova.config import DB_PATH, BACKUPS_DIR, BROWSER_PROFILE_DIR, LOGS_DIR, DATA_DIR
 
 logger = logging.getLogger("nova.database")
 
@@ -642,7 +642,25 @@ def purge_transient_cache() -> Dict[str, Any]:
                     pass
         purged_items.append("Browser disk cache")
 
-    # 2. Compact database
+    # 2. Clear Transient Audio Cache (Kokoro & Piper)
+    audio_cache_dir = DATA_DIR / "audio_cache"
+    if audio_cache_dir.exists():
+        for root, dirs, files in os.walk(audio_cache_dir, topdown=False):
+            for name in files:
+                f_path = Path(root) / name
+                try:
+                    freed_bytes += f_path.stat().st_size
+                    f_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            for d in dirs:
+                try:
+                    (Path(root) / d).rmdir()
+                except Exception:
+                    pass
+        purged_items.append("Voice audio cache")
+
+    # 3. Compact database
     try:
         with get_connection() as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

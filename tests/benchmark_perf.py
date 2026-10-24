@@ -164,7 +164,7 @@ def run_benchmarks():
     print(f"[MONITOR] Metrics Avg: {mon['metrics_avg_ms']:.1f}ms | Top Process Iter Avg: {mon['process_iter_avg_ms']:.1f}ms")
 
     det = benchmark_deterministic_actions()
-    print(f"[DETERMINISTIC] Math Avg: {det['math_avg_us']:.1f}µs | Query Avg: {det['query_avg_us']:.1f}µs (< 0.1ms per op)")
+    print(f"[DETERMINISTIC] Math Avg: {det['math_avg_us']:.1f}us | Query Avg: {det['query_avg_us']:.1f}us (< 0.1ms per op)")
 
     v_bench = benchmark_nova_voice()
     k = v_bench["kokoro"]

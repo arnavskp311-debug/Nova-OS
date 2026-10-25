@@ -139,17 +139,19 @@ def benchmark_startup_window():
     win = MainWindow()
     t1 = time.perf_counter()
 
-    if "dashboard" in win.windows:
-        frame, _ = win.windows["dashboard"]
-        if hasattr(frame.content_widget, "worker"):
-            frame.content_widget.worker.stop()
+    win._cleanup_on_close()
     win.close()
+    if app:
+        app.processEvents()
 
     return {
         "main_window_init_ms": (t1 - t0) * 1000
     }
 
 def run_benchmarks():
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)
+
     print("=" * 60)
     print("NOVA OS PERFORMANCE BENCHMARK")
     print("=" * 60)
@@ -175,6 +177,9 @@ def run_benchmarks():
     win = benchmark_startup_window()
     print(f"[STARTUP] MainWindow Init (inc. default windows): {win['main_window_init_ms']:.1f}ms")
     print("=" * 60)
+    if app:
+        app.processEvents()
 
 if __name__ == "__main__":
     run_benchmarks()
+    sys.exit(0)

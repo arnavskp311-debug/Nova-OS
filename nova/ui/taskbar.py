@@ -137,6 +137,7 @@ class Taskbar(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("TaskbarFrame")
         self.window_buttons = {}
         self.setup_ui()
 
@@ -147,34 +148,37 @@ class Taskbar(QFrame):
         self.update_clock()
 
     def setup_ui(self):
-        self.setFixedHeight(48)
+        self.setFixedHeight(54)
         self.setStyleSheet("""
-            QFrame {
-                background-color: rgba(10, 14, 24, 0.95);
-                border-top: 1px solid rgba(0, 240, 255, 0.25);
+            QFrame#TaskbarFrame {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(14, 20, 36, 0.95), stop:1 rgba(8, 12, 22, 0.98));
+                border: 1px solid rgba(0, 240, 255, 0.35);
+                border-radius: 26px;
             }
         """)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 4, 10, 4)
-        layout.setSpacing(10)
+        layout.setContentsMargins(14, 4, 14, 4)
+        layout.setSpacing(8)
 
-        # Start Button
+        # Start Button (❖ NOVA)
         self.start_btn = QPushButton("❖ NOVA")
-        self.start_btn.setFixedSize(90, 36)
+        self.start_btn.setFixedSize(86, 36)
+        self.start_btn.setCursor(Qt.PointingHandCursor)
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0052cc, stop:1 #00f0ff);
                 color: #ffffff;
                 font-weight: 800;
-                font-size: 13px;
-                border-radius: 6px;
+                font-size: 12px;
+                border-radius: 18px;
                 border: 1px solid #00f0ff;
-                letter-spacing: 1px;
+                letter-spacing: 0.5px;
             }
             QPushButton:hover {
                 background: #ffffff;
                 color: #000000;
+                border-color: #ffffff;
             }
         """)
         self.launcher = LauncherPopup(self)
@@ -183,39 +187,44 @@ class Taskbar(QFrame):
         self.start_btn.clicked.connect(self.toggle_launcher)
         layout.addWidget(self.start_btn)
 
-        # Universal Search Trigger Button
-        self.search_btn = QPushButton("🔍 Search")
+        # Universal Search Trigger Button (Pill Search)
+        self.search_btn = QPushButton("🔍 Search... (Ctrl+Space)")
         self.search_btn.setFixedHeight(34)
-        self.search_btn.setToolTip("Universal Search (Ctrl+Space)")
+        self.search_btn.setFixedWidth(160)
+        self.search_btn.setCursor(Qt.PointingHandCursor)
+        self.search_btn.setToolTip("Universal Search & Directives (Ctrl+Space / Alt+Space)")
         self.search_btn.setStyleSheet("""
             QPushButton {
-                background: #12192c;
-                border: 1px solid rgba(0, 240, 255, 0.4);
-                border-radius: 6px;
-                color: #00f0ff;
-                padding: 0 10px;
-                font-weight: 600;
+                background: #0f172a;
+                border: 1px solid rgba(0, 240, 255, 0.3);
+                border-radius: 17px;
+                color: #94a3b8;
+                padding: 0 12px;
+                font-weight: 500;
                 font-size: 11px;
+                text-align: left;
             }
             QPushButton:hover {
-                background: #00f0ff;
-                color: #000000;
+                background: #1e293b;
+                border-color: #00f0ff;
+                color: #ffffff;
             }
         """)
         self.search_btn.clicked.connect(self.universal_search_requested.emit)
         layout.addWidget(self.search_btn)
 
-        # Voice Assistant Trigger Button
+        # Voice Assistant Trigger Button (Violet Neon Glow)
         self.voice_btn = QPushButton("🎙 Voice")
         self.voice_btn.setFixedHeight(34)
-        self.voice_btn.setToolTip("NOVA Voice Assistant (Ctrl+Shift+Space)")
+        self.voice_btn.setCursor(Qt.PointingHandCursor)
+        self.voice_btn.setToolTip("NOVA Voice Assistant (Ctrl+Shift+Space / F4)")
         self.voice_btn.setStyleSheet("""
             QPushButton {
                 background: #1a1638;
                 border: 1px solid #b026ff;
-                border-radius: 6px;
+                border-radius: 17px;
                 color: #e2b3ff;
-                padding: 0 10px;
+                padding: 0 12px;
                 font-weight: 600;
                 font-size: 11px;
             }
@@ -240,12 +249,13 @@ class Taskbar(QFrame):
         for app_id, icon, tip in quick_icons:
             btn = QPushButton(icon)
             btn.setFixedSize(34, 34)
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setToolTip(tip)
             btn.setStyleSheet("""
                 QPushButton {
                     background: #12192c;
                     border: 1px solid rgba(255,255,255,0.08);
-                    border-radius: 6px;
+                    border-radius: 17px;
                     font-size: 14px;
                 }
                 QPushButton:hover {
@@ -259,12 +269,13 @@ class Taskbar(QFrame):
         # Clipboard History quick button
         self.clip_btn = QPushButton("📋")
         self.clip_btn.setFixedSize(34, 34)
+        self.clip_btn.setCursor(Qt.PointingHandCursor)
         self.clip_btn.setToolTip("Clipboard History (Ctrl+Shift+V)")
         self.clip_btn.setStyleSheet("""
             QPushButton {
                 background: #12192c;
                 border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 6px;
+                border-radius: 17px;
                 font-size: 14px;
             }
             QPushButton:hover {
@@ -278,7 +289,7 @@ class Taskbar(QFrame):
         # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
-        sep.setStyleSheet("color: rgba(255, 255, 255, 0.1);")
+        sep.setStyleSheet("color: rgba(0, 240, 255, 0.2);")
         layout.addWidget(sep)
 
         # Active Tasks Bar
@@ -290,20 +301,31 @@ class Taskbar(QFrame):
         layout.addWidget(self.tasks_container, stretch=1)
 
         # Right Side System Tray
-        # AI Status Tag
+        # AI Status Tag (Pill)
         self.ai_tag = QLabel("● AI READY")
-        self.ai_tag.setStyleSheet("color: #00ff88; font-weight: bold; font-size: 11px; padding: 2px 6px; background: #0c1422; border-radius: 4px; border: 1px solid rgba(0, 255, 136, 0.3);")
+        self.ai_tag.setStyleSheet("""
+            QLabel {
+                color: #00ff88;
+                font-weight: bold;
+                font-size: 10px;
+                padding: 4px 10px;
+                background: #081a18;
+                border-radius: 12px;
+                border: 1px solid rgba(0, 255, 136, 0.4);
+            }
+        """)
         layout.addWidget(self.ai_tag)
 
         # Quick Settings button
         self.quick_settings_btn = QPushButton("⚡")
         self.quick_settings_btn.setFixedSize(34, 34)
+        self.quick_settings_btn.setCursor(Qt.PointingHandCursor)
         self.quick_settings_btn.setToolTip("Quick Settings, Power Profiles & Cache (⚡)")
         self.quick_settings_btn.setStyleSheet("""
             QPushButton {
                 background: #101728;
                 border: 1px solid rgba(255, 170, 0, 0.4);
-                border-radius: 6px;
+                border-radius: 17px;
                 color: #ffaa00;
                 font-size: 14px;
                 font-weight: bold;
@@ -320,15 +342,29 @@ class Taskbar(QFrame):
         self.clock_lbl = QLabel()
         self.clock_lbl.setCursor(Qt.PointingHandCursor)
         self.clock_lbl.setToolTip("Click to view Quick Settings & Storage Diagnostics")
-        self.clock_lbl.setStyleSheet("color: #e2e8f0; font-family: 'Segoe UI', monospace; font-size: 12px; font-weight: 600; padding: 0 8px;")
+        self.clock_lbl.setStyleSheet("color: #e2e8f0; font-family: 'Segoe UI', monospace; font-size: 11px; font-weight: 600; padding: 0 8px;")
         self.clock_lbl.mousePressEvent = lambda e: self.quick_settings_requested.emit()
         layout.addWidget(self.clock_lbl)
 
         # Safe Exit Button
         exit_icon_btn = QPushButton("⏻")
         exit_icon_btn.setFixedSize(34, 34)
+        exit_icon_btn.setCursor(Qt.PointingHandCursor)
         exit_icon_btn.setToolTip("Safely Close NOVA OS Trial")
         exit_icon_btn.setObjectName("DangerButton")
+        exit_icon_btn.setStyleSheet("""
+            QPushButton#DangerButton {
+                background: #1f121d;
+                border: 1px solid #ff2a55;
+                border-radius: 17px;
+                color: #ff2a55;
+                font-size: 14px;
+            }
+            QPushButton#DangerButton:hover {
+                background: #ff2a55;
+                color: #ffffff;
+            }
+        """)
         exit_icon_btn.clicked.connect(self.exit_requested)
         layout.addWidget(exit_icon_btn)
 
@@ -338,7 +374,7 @@ class Taskbar(QFrame):
         else:
             # Position above start button
             global_pos = self.start_btn.mapToGlobal(QPoint(0, 0))
-            self.launcher.move(global_pos.x(), global_pos.y() - self.launcher.height() - 6)
+            self.launcher.move(global_pos.x(), global_pos.y() - self.launcher.height() - 10)
             self.launcher.show()
             self.launcher.search_box.setFocus()
 
@@ -362,20 +398,22 @@ class Taskbar(QFrame):
         for win_id, (frame, is_visible) in open_windows.items():
             btn = QPushButton(f"{frame.icon_text} {frame.title_text}")
             btn.setFixedHeight(32)
+            btn.setCursor(Qt.PointingHandCursor)
             bg = "#1a2542" if is_visible else "#0d1322"
-            border = "#00f0ff" if is_visible else "rgba(255,255,255,0.1)"
+            border = "#00f0ff" if is_visible else "rgba(255,255,255,0.12)"
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: {bg};
                     border: 1px solid {border};
-                    border-radius: 5px;
+                    border-radius: 14px;
                     color: #ffffff;
-                    padding: 0 10px;
+                    padding: 0 12px;
                     font-size: 11px;
                     font-weight: 600;
                 }}
                 QPushButton:hover {{
                     border-color: #00f0ff;
+                    background: #233358;
                 }}
             """)
             btn.clicked.connect(lambda checked, w=win_id: self.window_toggle_requested.emit(w))

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "browser",
+    "title": "NOVA Browser",
+    "icon": "\ud83c\udf10",
+    "type": "app",
+    "target": "browser",
+    "x": 30,
+    "y": 30
+  },
+  {
+    "id": "chat",
+    "title": "NOVA AI",
+    "icon": "\ud83e\udd16",
+    "type": "app",
+    "target": "chat",
+    "x": 30,
+    "y": 125
+  },
+  {
+    "id": "dashboard",
+    "title": "Telemetry",
+    "icon": "\ud83d\udcca",
+    "type": "app",
+    "target": "dashboard",
+    "x": 30,
+    "y": 220
+  },
+  {
+    "id": "notes",
+    "title": "NovaPad",
+    "icon": "\ud83d\udcdd",
+    "type": "app",
+    "target": "notes",
+    "x": 125,
+    "y": 30
+  },
+  {
+    "id": "files",
+    "title": "File Vault",
+    "icon": "\ud83d\udcc1",
+    "type": "app",
+    "target": "files",
+    "x": 125,
+    "y": 125
+  },
+  {
+    "id": "terminal",
+    "title": "Terminal",
+    "icon": "\ud83d\udcbb",
+    "type": "app",
+    "target": "terminal",
+    "x": 125,
+    "y": 220
+  },
+  {
+    "id": "settings",
+    "title": "Settings",
+    "icon": "\u2699",
+    "type": "app",
+    "target": "settings",
+    "x": 220,
+    "y": 30
+  }
+]

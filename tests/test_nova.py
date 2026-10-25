@@ -505,6 +505,13 @@ def test_ui_instantiation():
     assert hasattr(window, "notification_manager")
     assert hasattr(window, "voice_hud")
 
+    # Verify Wallpaper Host and Desktop Icons
+    assert hasattr(window, "host_container")
+    assert window.host_container._raw_wallpaper_pixmap is not None, "Wallpaper should be loaded"
+    assert hasattr(window.desktop_canvas, "icon_manager")
+    assert len(window.desktop_canvas.icon_manager.shortcuts) >= 5, "Default desktop shortcuts should be present"
+    window.desktop_canvas.icon_manager.arrange_grid()
+
     # Test toggles
     window.toggle_search()
     assert window.search_dialog.isVisible()

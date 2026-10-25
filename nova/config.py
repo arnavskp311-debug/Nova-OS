@@ -13,6 +13,9 @@ BACKUPS_DIR = DATA_DIR / "backups"
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 BROWSER_PROFILE_DIR = DATA_DIR / "browser_profile"
 BROWSER_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+WALLPAPERS_DIR = DATA_DIR / "wallpapers"
+WALLPAPERS_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_WALLPAPER_PATH = WALLPAPERS_DIR / "nova_cyber_desktop.png"
 
 APP_NAME = "NOVA OS"
 APP_VERSION = "1.1.0-trial"

@@ -4,9 +4,10 @@ Coordinates the cybernetic desktop canvas, floating window frames, taskbar,
 and inter-application workflows.
 """
 
+from pathlib import Path
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QMessageBox,
-    QApplication, QLabel
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
+    QApplication, QLabel, QMenu, QInputDialog, QFileDialog
 )
 from PySide6.QtCore import Qt, QPoint, QRect, QTimer
 from PySide6.QtGui import (
@@ -14,10 +15,10 @@ from PySide6.QtGui import (
     QKeySequence, QShortcut
 )
 
-from nova.config import APP_NAME, APP_VERSION, APP_SUBTITLE, DEFAULT_ACCENT, BROWSER_HOMEPAGE
+from nova.config import APP_NAME, APP_VERSION, APP_SUBTITLE, DEFAULT_ACCENT, BROWSER_HOMEPAGE, DEFAULT_WALLPAPER_PATH
 from nova.system_monitor import SystemMonitor
 from nova.ollama_client import OllamaClient
-from nova.database import init_db, get_setting, get_due_reminders, complete_reminder, purge_transient_cache
+from nova.database import init_db, get_setting, set_setting, get_due_reminders, complete_reminder, purge_transient_cache
 from nova.ui.theme import get_stylesheet
 from nova.ui.taskbar import Taskbar
 from nova.ui.window_frame import WindowFrame
@@ -27,6 +28,7 @@ from nova.ui.widgets.universal_search import UniversalSearchDialog
 from nova.ui.widgets.quick_settings import QuickSettingsFlyout
 from nova.voice import VoiceEngine, VoiceOrchestrator, BrowserVoiceContext
 from nova.ui.voice_ui import NovaVoiceHUD
+from nova.ui.desktop_icons import DesktopIconManager
 
 from nova.ui.widgets.dashboard import DashboardWidget
 from nova.ui.widgets.chat import ChatWidget
@@ -36,12 +38,48 @@ from nova.ui.widgets.file_viewer import FileViewerWidget
 from nova.ui.widgets.settings import SettingsWidget
 from nova.ui.widgets.browser import BrowserWidget
 
-class DesktopCanvas(QWidget):
-    """Futuristic desktop area with cybernetic grid and radial glow (Cached for 60fps rendering)."""
+
+class CyberDesktopHost(QWidget):
+    """
+    Host container for the NOVA OS workspace.
+    Renders and caches the cybernetic wallpaper across the entire application window,
+    with cyber corner brackets and status watermark.
+    """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("DesktopWidget")
+        self.setObjectName("CyberDesktopHost")
         self._cached_pixmap = None
+        self._wallpaper_path = None
+        self._raw_wallpaper_pixmap = None
+        self.load_wallpaper()
+
+    def load_wallpaper(self):
+        saved_path = get_setting("custom_wallpaper", str(DEFAULT_WALLPAPER_PATH))
+        p = Path(saved_path)
+        if not p.exists():
+            p = DEFAULT_WALLPAPER_PATH
+        if p.exists():
+            self._wallpaper_path = str(p)
+            self._raw_wallpaper_pixmap = QPixmap(str(p))
+            if self._raw_wallpaper_pixmap.isNull():
+                self._raw_wallpaper_pixmap = None
+        else:
+            self._raw_wallpaper_pixmap = None
+        self._cached_pixmap = None
+
+    def set_wallpaper(self, path: str) -> bool:
+        p = Path(path)
+        if not p.exists():
+            return False
+        pix = QPixmap(str(p))
+        if pix.isNull():
+            return False
+        self._wallpaper_path = str(p)
+        self._raw_wallpaper_pixmap = pix
+        set_setting("custom_wallpaper", str(p))
+        self._cached_pixmap = None
+        self.update()
+        return True
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -53,30 +91,58 @@ class DesktopCanvas(QWidget):
         pixmap = QPixmap(w, h)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
-        # Background gradient
-        bg_gradient = QRadialGradient(w / 2, h / 2, max(w, h) * 0.7)
-        bg_gradient.setColorAt(0.0, QColor("#0d1222"))
-        bg_gradient.setColorAt(0.6, QColor("#080b14"))
-        bg_gradient.setColorAt(1.0, QColor("#04060a"))
-        painter.fillRect(0, 0, w, h, bg_gradient)
+        if self._raw_wallpaper_pixmap and not self._raw_wallpaper_pixmap.isNull():
+            scaled = self._raw_wallpaper_pixmap.scaled(
+                w, h,
+                Qt.KeepAspectRatioByExpanding,
+                Qt.SmoothTransformation
+            )
+            sx = max(0, (scaled.width() - w) // 2)
+            sy = max(0, (scaled.height() - h) // 2)
+            painter.drawPixmap(0, 0, scaled, sx, sy, w, h)
+            # Subtle cybernetic darkening overlay for UI readability
+            painter.fillRect(0, 0, w, h, QColor(4, 6, 12, 60))
+        else:
+            # Fallback procedural cyber background
+            bg_gradient = QRadialGradient(w / 2, h / 2, max(w, h) * 0.7)
+            bg_gradient.setColorAt(0.0, QColor("#0d1222"))
+            bg_gradient.setColorAt(0.6, QColor("#080b14"))
+            bg_gradient.setColorAt(1.0, QColor("#04060a"))
+            painter.fillRect(0, 0, w, h, bg_gradient)
 
-        # Subtle cyber grid
-        pen = QPen(QColor(0, 240, 255, 12))
-        pen.setWidth(1)
-        painter.setPen(pen)
+            pen = QPen(QColor(0, 240, 255, 14))
+            pen.setWidth(1)
+            painter.setPen(pen)
+            grid_size = 45
+            for x in range(0, w, grid_size):
+                painter.drawLine(x, 0, x, h)
+            for y in range(0, h, grid_size):
+                painter.drawLine(0, y, w, y)
 
-        grid_size = 45
-        for x in range(0, w, grid_size):
-            painter.drawLine(x, 0, x, h)
-        for y in range(0, h, grid_size):
-            painter.drawLine(0, y, w, y)
+        # Neon cyber corner brackets matching reference image
+        accent_pen = QPen(QColor(0, 240, 255, 100))
+        accent_pen.setWidth(2)
+        painter.setPen(accent_pen)
+        # Top-left
+        painter.drawLine(14, 14, 50, 14)
+        painter.drawLine(14, 14, 14, 50)
+        # Top-right
+        painter.drawLine(w - 50, 14, w - 14, 14)
+        painter.drawLine(w - 14, 14, w - 14, 50)
+        # Bottom-left
+        painter.drawLine(14, h - 50, 14, h - 14)
+        painter.drawLine(14, h - 14, 50, h - 14)
+        # Bottom-right
+        painter.drawLine(w - 50, h - 14, w - 14, h - 14)
+        painter.drawLine(w - 14, h - 50, w - 14, h - 14)
 
-        # Subtle watermarks
-        watermark_pen = QPen(QColor(255, 255, 255, 35))
+        # Subtle trial watermark
+        watermark_pen = QPen(QColor(255, 255, 255, 30))
         painter.setPen(watermark_pen)
         painter.drawText(
-            QRect(w - 420, h - 35, 400, 25),
+            QRect(w - 420, h - 24, 400, 18),
             Qt.AlignRight | Qt.AlignVCenter,
             "NOVA OS [AI TRIAL SANDBOX] • SAFE ON WINDOWS"
         )
@@ -88,6 +154,127 @@ class DesktopCanvas(QWidget):
             self._update_cached_pixmap()
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self._cached_pixmap)
+
+
+class DesktopCanvas(QWidget):
+    """
+    Transparent interactive desktop workspace.
+    Hosts draggable desktop shortcuts, floating window frames, and desktop context menu.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("DesktopCanvas")
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setStyleSheet("background: transparent;")
+        self.icon_manager = DesktopIconManager(self)
+
+    def setup_icons(self, on_activate_callback):
+        self.icon_manager.render_icons(on_activate_callback)
+
+    def contextMenuEvent(self, event):
+        """Shows the Cyber Desktop context menu when right-clicking the empty desktop."""
+        main_win = self.window()
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #0c1424;
+                color: #e2e8f0;
+                border: 1px solid #00f0ff;
+                border-radius: 8px;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 20px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #0052cc;
+                color: #ffffff;
+            }
+        """)
+
+        act_search = menu.addAction("🔍 Universal Search (Ctrl+Space)")
+        act_quick = menu.addAction("⚡ Quick Settings (Ctrl+Shift+S)")
+        act_clip = menu.addAction("📋 Clipboard History (Ctrl+Shift+V)")
+        menu.addSeparator()
+        act_grid = menu.addAction("🔲 Auto-Arrange Desktop Icons")
+        act_add_app = menu.addAction("➕ Add Application Shortcut...")
+        act_add_file = menu.addAction("📁 Add File/Folder Shortcut...")
+        menu.addSeparator()
+        act_wallpaper = menu.addAction("🖼 Change Wallpaper...")
+        act_refresh = menu.addAction("🔄 Refresh Desktop")
+
+        chosen = menu.exec(event.globalPos())
+        if chosen == act_search and hasattr(main_win, "toggle_search"):
+            main_win.toggle_search()
+        elif chosen == act_quick and hasattr(main_win, "toggle_quick_settings"):
+            main_win.toggle_quick_settings()
+        elif chosen == act_clip and hasattr(main_win, "toggle_clipboard_history"):
+            main_win.toggle_clipboard_history()
+        elif chosen == act_grid:
+            self.icon_manager.arrange_grid()
+        elif chosen == act_add_app and hasattr(main_win, "_on_desktop_icon_activated"):
+            self._prompt_add_app_shortcut(main_win)
+        elif chosen == act_add_file and hasattr(main_win, "_on_desktop_icon_activated"):
+            self._prompt_add_file_shortcut(main_win)
+        elif chosen == act_wallpaper:
+            self._prompt_change_wallpaper(main_win)
+        elif chosen == act_refresh:
+            if hasattr(main_win, "host_container"):
+                main_win.host_container.load_wallpaper()
+                main_win.host_container.update()
+            if hasattr(main_win, "_on_desktop_icon_activated"):
+                self.icon_manager.render_icons(main_win._on_desktop_icon_activated)
+            self.update()
+
+    def _prompt_add_app_shortcut(self, main_win):
+        apps = [
+            ("NOVA Cyber Browser", "🌐", "app", "browser"),
+            ("NOVA AI Assistant", "🤖", "app", "chat"),
+            ("Telemetry Dashboard", "📊", "app", "dashboard"),
+            ("NovaPad Knowledge", "📝", "app", "notes"),
+            ("Cyber Safe Terminal", "💻", "app", "terminal"),
+            ("Sandbox File Vault", "📁", "app", "files"),
+            ("Control Center", "⚙", "app", "settings"),
+            ("NOVA Voice Assistant", "🎙", "app", "voice"),
+            ("Clipboard History", "📋", "app", "clipboard"),
+        ]
+        items = [f"{icon} {name}" for name, icon, _, _ in apps]
+        item, ok = QInputDialog.getItem(
+            self, "Add Application Shortcut", "Select an application to place on the desktop:", items, 0, False
+        )
+        if ok and item:
+            idx = items.index(item)
+            name, icon, s_type, target = apps[idx]
+            self.icon_manager.add_shortcut(
+                name, icon, s_type, target, main_win._on_desktop_icon_activated
+            )
+            if hasattr(main_win, "notify"):
+                main_win.notify("SHORTCUT CREATED", f"Added '{name}' to desktop.", "info", 3000)
+
+    def _prompt_add_file_shortcut(self, main_win):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select File or Script for Desktop Shortcut", str(Path.home())
+        )
+        if file_path:
+            p = Path(file_path)
+            icon = "📁" if p.is_dir() else "📄"
+            self.icon_manager.add_shortcut(
+                p.name, icon, "file", str(p), main_win._on_desktop_icon_activated
+            )
+            if hasattr(main_win, "notify"):
+                main_win.notify("FILE SHORTCUT ADDED", f"Linked '{p.name}' on desktop.", "info", 3000)
+
+    def _prompt_change_wallpaper(self, main_win):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Wallpaper Image", str(Path.home()), "Images (*.png *.jpg *.jpeg *.bmp *.webp)"
+        )
+        if file_path:
+            if hasattr(main_win, "host_container") and main_win.host_container.set_wallpaper(file_path):
+                if hasattr(main_win, "notify"):
+                    main_win.notify("WALLPAPER UPDATED", "Applied new cyber wallpaper.", "info", 3000)
+            else:
+                QMessageBox.warning(self, "Invalid Image", "Could not load the selected wallpaper image file.")
 
 class MainWindow(QMainWindow):
     def __init__(self, initial_url: str = None):
@@ -108,6 +295,7 @@ class MainWindow(QMainWindow):
 
         self.setup_ui()
         self.setup_shortcuts()
+        self.desktop_canvas.setup_icons(self._on_desktop_icon_activated)
         self.apply_theme(get_setting("accent_color", DEFAULT_ACCENT))
 
         # Check due reminders periodically (every 10 seconds)
@@ -132,15 +320,15 @@ class MainWindow(QMainWindow):
             self.launch_app("chat", initial_pos=(670, 30), initial_size=(560, 680))
 
     def setup_ui(self):
-        # Central Container
-        central = QWidget(self)
-        self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        # Central Cyber Host Container (renders full-bleed wallpaper)
+        self.host_container = CyberDesktopHost(self)
+        self.setCentralWidget(self.host_container)
+        main_layout = QVBoxLayout(self.host_container)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Desktop Workspace Canvas
-        self.desktop_canvas = DesktopCanvas(central)
+        # Desktop Workspace Canvas (transparent, hosts shortcuts and windows)
+        self.desktop_canvas = DesktopCanvas(self.host_container)
         main_layout.addWidget(self.desktop_canvas, stretch=1)
 
         # Notification Stack Manager (HUD overlay)
@@ -176,8 +364,16 @@ class MainWindow(QMainWindow):
             parent=self
         )
 
-        # Bottom Taskbar
-        self.taskbar = Taskbar(central)
+        # Floating Bottom Dock Container
+        dock_container = QWidget(self.host_container)
+        dock_container.setObjectName("DockContainer")
+        dock_container.setStyleSheet("background: transparent;")
+        dock_layout = QHBoxLayout(dock_container)
+        dock_layout.setContentsMargins(20, 0, 20, 10)
+        dock_layout.setSpacing(0)
+
+        # Bottom Floating Taskbar / Dock
+        self.taskbar = Taskbar(dock_container)
         self.taskbar.app_launch_requested.connect(self.launch_app)
         self.taskbar.window_toggle_requested.connect(self.toggle_window)
         self.taskbar.universal_search_requested.connect(self.toggle_search)
@@ -185,7 +381,12 @@ class MainWindow(QMainWindow):
         self.taskbar.clipboard_requested.connect(self.toggle_clipboard_history)
         self.taskbar.voice_assistant_requested.connect(self.toggle_voice_assistant)
         self.taskbar.exit_requested.connect(self.confirm_exit)
-        main_layout.addWidget(self.taskbar)
+        dock_layout.addWidget(self.taskbar)
+        main_layout.addWidget(dock_container)
+
+    def _on_desktop_icon_activated(self, data: dict):
+        if hasattr(self.desktop_canvas, "icon_manager") and self.desktop_canvas.icon_manager:
+            self.desktop_canvas.icon_manager.launch_target(data, self.launch_app)
 
     def setup_shortcuts(self):
         # Siri-Style NOVA Voice Assistant (Ctrl+Shift+Space or F4)

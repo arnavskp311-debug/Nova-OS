@@ -165,7 +165,7 @@ class NovaVoiceHUD(QFrame):
 
         self.setObjectName("NovaVoiceHUD")
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
-        self.setFixedSize(540, 520)
+        self.setFixedSize(480, 340)
 
         self.setup_ui()
         self.connect_signals()
@@ -173,9 +173,9 @@ class NovaVoiceHUD(QFrame):
     def setup_ui(self):
         self.setStyleSheet("""
             QFrame#NovaVoiceHUD {
-                background-color: rgba(9, 14, 26, 0.98);
+                background-color: rgba(7, 12, 24, 0.98);
                 border: 1px solid #00f0ff;
-                border-radius: 12px;
+                border-radius: 14px;
             }
         """)
 
@@ -186,7 +186,7 @@ class NovaVoiceHUD(QFrame):
         self.setGraphicsEffect(shadow)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 16)
+        layout.setContentsMargins(18, 14, 18, 14)
         layout.setSpacing(10)
 
         # 1. Top Header Bar
@@ -212,7 +212,7 @@ class NovaVoiceHUD(QFrame):
         header.addWidget(close_btn)
         layout.addLayout(header)
 
-        # 2. Central Animated Orb
+        # 2. Central Animated Voice Orb (Hero Element)
         orb_box = QHBoxLayout()
         orb_box.addStretch()
         self.orb = NovaVoiceOrbWidget(self)
@@ -220,43 +220,50 @@ class NovaVoiceHUD(QFrame):
         orb_box.addStretch()
         layout.addLayout(orb_box)
 
-        # 3. Live Transcription & Response Area
-        convo_frame = QFrame()
-        convo_frame.setStyleSheet("""
+        # 3. Compact Status & Feedback Subtitle
+        self.compact_status = QLabel("Ready • Hold to Speak or type below")
+        self.compact_status.setAlignment(Qt.AlignCenter)
+        self.compact_status.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: 500; font-style: italic;")
+        layout.addWidget(self.compact_status)
+
+        # 4. Optional Collapsible Conversation Transcript Drawer (Hidden by default)
+        self.transcript_drawer = QFrame()
+        self.transcript_drawer.setVisible(False)
+        self.transcript_drawer.setStyleSheet("""
             QFrame {
                 background: #060a14;
                 border: 1px solid rgba(0, 240, 255, 0.2);
                 border-radius: 8px;
             }
         """)
-        convo_layout = QVBoxLayout(convo_frame)
-        convo_layout.setContentsMargins(12, 10, 12, 10)
-        convo_layout.setSpacing(6)
+        t_layout = QVBoxLayout(self.transcript_drawer)
+        t_layout.setContentsMargins(10, 8, 10, 8)
+        t_layout.setSpacing(4)
 
-        self.user_bubble = QLabel("Press the microphone button or type below to speak with NOVA...")
+        self.user_bubble = QLabel("You: ...")
         self.user_bubble.setWordWrap(True)
-        self.user_bubble.setStyleSheet("color: #94a3b8; font-size: 12px; font-style: italic;")
-        convo_layout.addWidget(self.user_bubble)
+        self.user_bubble.setStyleSheet("color: #94a3b8; font-size: 11px; font-style: italic;")
+        t_layout.addWidget(self.user_bubble)
 
-        self.nova_bubble = QLabel("Ready. Powered by Kokoro-82M and local Qwen 2.5.")
+        self.nova_bubble = QLabel("NOVA: Ready.")
         self.nova_bubble.setWordWrap(True)
-        self.nova_bubble.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 500; line-height: 1.4;")
-        convo_layout.addWidget(self.nova_bubble)
-        layout.addWidget(convo_frame)
+        self.nova_bubble.setStyleSheet("color: #ffffff; font-size: 12px; font-weight: 500; line-height: 1.3;")
+        t_layout.addWidget(self.nova_bubble)
+        layout.addWidget(self.transcript_drawer)
 
-        # 4. Browser Context Action Pills
+        # 5. Quick Action Row
         action_row = QHBoxLayout()
         action_row.setSpacing(6)
 
-        self.btn_summarize_page = QPushButton("📄 Summarize Page")
+        self.btn_transcript_toggle = QPushButton("💬 Transcript")
+        self.btn_transcript_toggle.setStyleSheet(self._pill_style("#38bdf8"))
+        self.btn_transcript_toggle.clicked.connect(self._toggle_transcript_drawer)
+        action_row.addWidget(self.btn_transcript_toggle)
+
+        self.btn_summarize_page = QPushButton("📄 Page Summary")
         self.btn_summarize_page.setStyleSheet(self._pill_style("#00f0ff"))
         self.btn_summarize_page.clicked.connect(self._on_summarize_page_clicked)
         action_row.addWidget(self.btn_summarize_page)
-
-        self.btn_explain_selection = QPushButton("🔍 Explain Selection")
-        self.btn_explain_selection.setStyleSheet(self._pill_style("#b026ff"))
-        self.btn_explain_selection.clicked.connect(self._on_explain_selection_clicked)
-        action_row.addWidget(self.btn_explain_selection)
 
         action_row.addStretch()
 
@@ -266,7 +273,7 @@ class NovaVoiceHUD(QFrame):
         action_row.addWidget(self.btn_settings_toggle)
         layout.addLayout(action_row)
 
-        # 5. Settings Drawer (Collapsible)
+        # 6. Settings Drawer (Collapsible)
         self.settings_panel = QFrame()
         self.settings_panel.setVisible(False)
         self.settings_panel.setStyleSheet("""
@@ -489,25 +496,49 @@ class NovaVoiceHUD(QFrame):
         self.state_pill.setText(text)
         self.state_pill.setStyleSheet(f"color: {color}; font-size: 10px; font-weight: bold; background: #0c1424; padding: 2px 8px; border-radius: 4px; border: 1px solid {color}55;")
 
+    def _toggle_transcript_drawer(self):
+        is_vis = not self.transcript_drawer.isVisible()
+        self.transcript_drawer.setVisible(is_vis)
+        self._update_hud_size()
+
+    def _toggle_settings_panel(self):
+        is_vis = not self.settings_panel.isVisible()
+        self.settings_panel.setVisible(is_vis)
+        self._update_hud_size()
+
+    def _update_hud_size(self):
+        h = 340
+        if self.transcript_drawer.isVisible():
+            h += 90
+        if self.settings_panel.isVisible():
+            h += 130
+        self.setFixedHeight(h)
+
     def _on_user_transcript(self, text: str):
         self.user_bubble.setText(f"You: \"{text}\"")
+        self.compact_status.setText(f"You: \"{text[:45]}...\"" if len(text) > 45 else f"You: \"{text}\"")
         self.nova_bubble.setText("...")
 
     def _on_reply_token(self, token: str):
         current = self.nova_bubble.text()
-        if current == "...":
+        if current in ["...", "NOVA: Ready."]:
             current = ""
         self.nova_bubble.setText(current + token)
+        snippet = self.nova_bubble.text().split(".")[0]
+        if snippet:
+            self.compact_status.setText(snippet[:55] + ("..." if len(snippet) > 55 else ""))
+
+    def _on_reply_complete(self, full_text: str):
+        self.nova_bubble.setText(f"NOVA: {full_text}")
+        first_line = full_text.split(".")[0]
+        self.compact_status.setText(first_line[:55] + ("..." if len(first_line) > 55 else "."))
+        self._on_state_changed("speaking" if self.voice_engine.playback.is_playing else "idle")
 
     def _on_sentence_to_speak(self, sentence: str):
         # Forward sentence directly to voice engine for audio playback with queue support
         voice_id = self.voice_combo.currentData() or "af_nova"
         speed = self.speed_slider.value() / 100.0
         self.voice_engine.speak(sentence, voice=voice_id, speed=speed, queue=True)
-
-    def _on_reply_complete(self, full_text: str):
-        self.nova_bubble.setText(full_text)
-        self._on_state_changed("speaking" if self.voice_engine.playback.is_playing else "idle")
 
     def _on_error(self, err_msg: str):
         self._on_state_changed("error")
@@ -540,9 +571,6 @@ class NovaVoiceHUD(QFrame):
     def _on_browser_selection_text(self, selection: str):
         prompt = f"Please explain the following selected excerpt clearly and concisely:\n\n{selection}"
         self.orchestrator.process_user_query(prompt)
-
-    def _toggle_settings_panel(self):
-        self.settings_panel.setVisible(not self.settings_panel.isVisible())
 
     def _on_engine_changed(self, idx: int):
         engines = ["kokoro", "piper", "sapi"]

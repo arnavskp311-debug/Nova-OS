@@ -21,6 +21,7 @@ from nova.config import BASE_DIR
 logger = logging.getLogger("nova.voice.piper_fallback")
 
 DEFAULT_PIPER_DIR = BASE_DIR / "data" / "models" / "piper"
+PERSISTENT_PIPER_DIR = Path.home() / ".nova" / "models" / "piper"
 DEFAULT_CACHE_DIR = BASE_DIR / "data" / "audio_cache" / "piper"
 
 
@@ -77,7 +78,14 @@ class PiperTTSEngine(QObject):
 
     def __init__(self, model_dir: Optional[Path] = None, cache_dir: Optional[Path] = None, parent=None):
         super().__init__(parent)
-        self.model_dir = Path(model_dir) if model_dir else DEFAULT_PIPER_DIR
+        if model_dir:
+            self.model_dir = Path(model_dir)
+        elif DEFAULT_PIPER_DIR.exists():
+            self.model_dir = DEFAULT_PIPER_DIR
+        elif PERSISTENT_PIPER_DIR.exists():
+            self.model_dir = PERSISTENT_PIPER_DIR
+        else:
+            self.model_dir = DEFAULT_PIPER_DIR
         self.cache_dir = Path(cache_dir) if cache_dir else DEFAULT_CACHE_DIR
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 

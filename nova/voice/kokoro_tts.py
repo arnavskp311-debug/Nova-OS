@@ -51,6 +51,7 @@ def clean_speech_text(text: str) -> str:
     return text
 
 DEFAULT_KOKORO_DIR = BASE_DIR / "data" / "models" / "kokoro"
+PERSISTENT_KOKORO_DIR = Path.home() / ".nova" / "models" / "kokoro"
 DEFAULT_CACHE_DIR = BASE_DIR / "data" / "audio_cache" / "kokoro"
 
 # Priority English voices available in Kokoro-82M
@@ -127,7 +128,14 @@ class KokoroTTSEngine(QObject):
 
     def __init__(self, model_dir: Optional[Path] = None, cache_dir: Optional[Path] = None, parent=None):
         super().__init__(parent)
-        self.model_dir = Path(model_dir) if model_dir else DEFAULT_KOKORO_DIR
+        if model_dir:
+            self.model_dir = Path(model_dir)
+        elif DEFAULT_KOKORO_DIR.exists():
+            self.model_dir = DEFAULT_KOKORO_DIR
+        elif PERSISTENT_KOKORO_DIR.exists():
+            self.model_dir = PERSISTENT_KOKORO_DIR
+        else:
+            self.model_dir = DEFAULT_KOKORO_DIR
         self.cache_dir = Path(cache_dir) if cache_dir else DEFAULT_CACHE_DIR
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -148,8 +156,17 @@ class KokoroTTSEngine(QObject):
 
     def _get_model_path(self) -> Optional[Path]:
         """Prefers int8 quantized model for Core i3 / 4 GB RAM, with fp16/fp32 fallback."""
-        for candidate in ["kokoro-v1.0.int8.onnx", "kokoro-v1.0.fp16.onnx", "kokoro-v1.0.onnx", "kokoro-v0_19.onnx"]:
-            p = self.model_dir / candidate
+        dirs_to_check = [self.model_dir]
+        if PERSISTENT_KOKORO_DIR not in dirs_to_check and PERSISTENT_KOKORO_DIR.exists():
+            dirs_to_check.append(PERSISTENT_KOKORO_DIR)
+
+        for d in dirs_to_check:
+            for candidate in ["kokoro-v1.0.int8.onnx", "kokoro-v1.0.fp16.onnx", "kokoro-v1.0.onnx", "kokoro-v0_19.onnx"]:
+                p = d / candidate
+                if p.exists() and p.stat().st_size > 1000:
+                    if d != self.model_dir:
+                        self.model_dir = d
+                    return p
             if p.exists() and p.stat().st_size > 1000:
                 return p
         return None

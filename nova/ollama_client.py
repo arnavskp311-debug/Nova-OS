@@ -4,9 +4,15 @@ Supports model discovery, streaming chat completions, and connection status chec
 Optimized for low-RAM Windows 11 with bounded retries, failure caching, and non-blocking operation.
 """
 
+import os
+import sys
 import json
 import logging
 import time
+import shutil
+import subprocess
+import threading
+from pathlib import Path
 from typing import List, Dict, Any, Generator, Optional
 import requests
 from requests.adapters import HTTPAdapter
@@ -139,3 +145,85 @@ class OllamaClient:
             yield "\n[Notice: Ollama inference request timed out. The local model may be busy swapping or loading.]"
         except Exception as e:
             yield f"\n[Transmission Error: {str(e)}]"
+
+
+def get_ollama_executable_path() -> Optional[str]:
+    """Locates the Ollama executable on the local system."""
+    cmd = shutil.which("ollama") or shutil.which("ollama.exe")
+    if cmd and os.path.exists(cmd):
+        return cmd
+
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    if local_app_data:
+        candidates = [
+            Path(local_app_data) / "Programs" / "Ollama" / "ollama.exe",
+            Path(local_app_data) / "Programs" / "Ollama" / "ollama app.exe",
+        ]
+        for p in candidates:
+            if p.exists():
+                return str(p)
+
+    prog_files = os.environ.get("ProgramFiles", "")
+    if prog_files:
+        p = Path(prog_files) / "Ollama" / "ollama.exe"
+        if p.exists():
+            return str(p)
+
+    return None
+
+
+def ensure_ollama_running(host: str = DEFAULT_OLLAMA_HOST, timeout_wait: float = 6.0) -> bool:
+    """
+    Checks if Ollama daemon is active; if offline, auto-starts the
+    Ollama server detached in the background without opening a command window.
+    """
+    client = OllamaClient(host=host)
+    if client.check_connection(force_refresh=True):
+        return True
+
+    exe = get_ollama_executable_path()
+    if not exe:
+        logger.warning("Ollama executable not found on host system.")
+        return False
+
+    logger.info(f"Auto-starting Ollama service via '{exe} serve'...")
+    try:
+        creation_flags = 0
+        if sys.platform == "win32":
+            # CREATE_NO_WINDOW (0x08000000) | DETACHED_PROCESS (0x00000008) | CREATE_NEW_PROCESS_GROUP (0x00000200)
+            creation_flags = 0x08000000 | 0x00000008 | 0x00000200
+
+        subprocess.Popen(
+            [exe, "serve"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creation_flags,
+            close_fds=True
+        )
+
+        start = time.time()
+        while time.time() - start < timeout_wait:
+            time.sleep(0.4)
+            if client.check_connection(force_refresh=True):
+                logger.info(f"Ollama successfully auto-started in {time.time()-start:.2f}s")
+                return True
+    except Exception as e:
+        logger.error(f"Failed to auto-start Ollama: {e}")
+
+    return False
+
+
+def start_ollama_in_background(host: str = DEFAULT_OLLAMA_HOST, on_ready_callback=None):
+    """Asynchronously starts Ollama on a daemon thread so the main UI never blocks."""
+    def _worker():
+        ok = ensure_ollama_running(host=host, timeout_wait=8.0)
+        if ok and on_ready_callback:
+            try:
+                on_ready_callback()
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_worker, name="OllamaAutoStartDaemon", daemon=True)
+    t.start()
+    return t

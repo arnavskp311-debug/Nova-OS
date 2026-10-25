@@ -426,6 +426,10 @@ class MainWindow(QMainWindow):
         self.ai_status_timer.start(20000)
         QTimer.singleShot(400, self._refresh_ai_status)
 
+        # Auto-ensure Ollama background daemon is running (non-blocking)
+        from nova.ollama_client import start_ollama_in_background
+        start_ollama_in_background(self.ollama_client.host, on_ready_callback=self._refresh_ai_status)
+
         # Welcome notification toast
         QTimer.singleShot(1200, lambda: self.notify(
             "NOVA OS Online",

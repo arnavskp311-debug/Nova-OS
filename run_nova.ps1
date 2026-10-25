@@ -22,6 +22,20 @@ try {
     exit 1
 }
 
+# Ensure Ollama AI daemon is active
+$ollamaProc = Get-Process -Name "*ollama*" -ErrorAction SilentlyContinue
+if (-not $ollamaProc) {
+    $ollamaExe = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+    if (-not (Test-Path $ollamaExe)) {
+        $found = Get-Command ollama -ErrorAction SilentlyContinue
+        if ($found) { $ollamaExe = $found.Source }
+    }
+    if (Test-Path $ollamaExe) {
+        Write-Host "[*] Auto-starting Ollama AI daemon in background..." -ForegroundColor Cyan
+        Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden
+    }
+}
+
 # Launch NOVA OS
 Write-Host "[*] Launching NOVA OS..." -ForegroundColor Cyan
 python main.py $args

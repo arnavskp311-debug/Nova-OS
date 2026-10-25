@@ -172,14 +172,39 @@ def get_ollama_executable_path() -> Optional[str]:
     return None
 
 
-def ensure_ollama_running(host: str = DEFAULT_OLLAMA_HOST, timeout_wait: float = 6.0) -> bool:
+def check_ollama_inference_healthy(host: str = DEFAULT_OLLAMA_HOST, model: str = DEFAULT_MODEL, timeout: float = 6.0) -> bool:
+    """Performs a lightweight 1-token test generation to verify llama-server initializes without DLL crashes."""
+    try:
+        url = f"{host.rstrip('/')}/api/generate"
+        payload = {"model": model, "prompt": "test", "stream": False, "options": {"num_predict": 1}}
+        r = requests.post(url, json=payload, timeout=timeout)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def ensure_ollama_running(host: str = DEFAULT_OLLAMA_HOST, timeout_wait: float = 8.0, force_restart_if_unhealthy: bool = True) -> bool:
     """
-    Checks if Ollama daemon is active; if offline, auto-starts the
-    Ollama server detached in the background without opening a command window.
+    Checks if Ollama daemon is active and healthy; if offline or failing inference
+    due to GPU/Vulkan DLL initialization issues (0xc0000142), cleanly terminates
+    stale instances and auto-starts Ollama with CPU compute parameters.
     """
     client = OllamaClient(host=host)
     if client.check_connection(force_refresh=True):
-        return True
+        if not force_restart_if_unhealthy or check_ollama_inference_healthy(host=host, timeout=4.0):
+            return True
+        logger.warning("Existing Ollama instance is active but failing inference (0xc0000142 / Vulkan mismatch). Restarting with CPU mode...")
+        try:
+            import psutil
+            for proc in psutil.process_iter(['name']):
+                if proc.info['name'] and 'ollama' in proc.info['name'].lower():
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            time.sleep(1.0)
+        except Exception:
+            pass
 
     exe = get_ollama_executable_path()
     if not exe:
@@ -214,9 +239,10 @@ def ensure_ollama_running(host: str = DEFAULT_OLLAMA_HOST, timeout_wait: float =
         start = time.time()
         while time.time() - start < timeout_wait:
             time.sleep(0.4)
-            if client.check_connection(force_refresh=True):
-                logger.info(f"Ollama successfully auto-started in {time.time()-start:.2f}s")
+            if client.check_connection(force_refresh=True) and check_ollama_inference_healthy(host=host, timeout=3.0):
+                logger.info(f"Ollama successfully auto-started and verified in {time.time()-start:.2f}s")
                 return True
+        return client.check_connection(force_refresh=True)
     except Exception as e:
         logger.error(f"Failed to auto-start Ollama: {e}")
 

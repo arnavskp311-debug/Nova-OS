@@ -61,7 +61,7 @@ NOVA Voice upgrades NOVA OS and NOVA Browser with a conversational, voice-enable
 
 | Shortcut | Action | Description |
 | :--- | :--- | :--- |
-| **`Ctrl+Shift+Space`** or **`F4`** | **NOVA Voice HUD** | Activates the Siri-style animated Voice Orb assistant overlay. |
+| **`Ctrl+Shift+Space`** or **`F4`** | **NOVA Voice HUD** | Activates the Siri-style animated Voice Orb assistant overlay (clean orb-centric HUD). |
 | **`Ctrl+Space`** or **`Alt+Space`** | **Universal Search HUD** | Opens Spotlight-style command palette for apps, notes, bookmarks, math, and directives. |
 | **`Ctrl+Shift+V`** | **Clipboard History HUD** | Opens floating clipboard manager with search and one-click paste buffer restoration. |
 | **`Ctrl+Shift+S`** | **Quick Settings Flyout** | Opens quick power profile selector, accent themes, SSD storage status, and cache purger. |
@@ -77,6 +77,16 @@ NOVA Voice upgrades NOVA OS and NOVA Browser with a conversational, voice-enable
 
 ---
 
+## Desktop Environment & Visual Identity
+
+NOVA OS features a cybernetic aesthetic aligned with the user reference design:
+- **Full-Bleed Cyber Wallpaper:** Automatically loads and smoothly renders the bundled wallpaper (`data/wallpapers/nova_cyber_desktop.png`) with responsive scaling and glowing neon corner brackets.
+- **Draggable Desktop Shortcuts:** Interactive shortcut icons (`DesktopIconManager`) for apps, files, and folders with double-click launching (`os.startfile`), drag-and-drop repositioning, grid auto-alignment, persistent coordinates in `data/desktop_shortcuts.json`, and context menu management.
+- **Floating Pill Dock:** Floating translucent glass taskbar (`border-radius: 26px`) elevated above the screen bottom, featuring the `❖ NOVA` start launcher, pill search box (`🔍 Search...`), application quick launchers, voice trigger, active window pill tabs, live `● AI READY` badge, Quick Settings, and safe power button.
+- **Clean Voice Assistant HUD:** The central Voice Orb serves as the hero interface. Long conversation transcripts are tucked into an accessible, collapsible slide-out drawer (`💬 Transcript`), ensuring the desktop remains visible and uncluttered during voice interaction.
+
+---
+
 ## Real-Device Performance Benchmarks (Intel Core i3 / Windows 11)
 
 Measured directly on the target hardware without virtualization:
@@ -85,13 +95,13 @@ Measured directly on the target hardware without virtualization:
 ============================================================
 NOVA OS & NOVA VOICE PERFORMANCE BENCHMARK RESULTS
 ============================================================
-[IMPORTS] Core Modules: 144.6ms | Qt/WebEngine: 80.2ms | Total: 224.7ms
-[DATABASE] 500 Inserts: 28.4ms | 50 LIKE Queries: 3.7ms (WAL + Indexing)
-[MONITOR] Metrics Avg: 1.1ms | Top Process Iter Avg: 96.5ms
-[DETERMINISTIC] Math Avg: 9.4µs | Query Avg: 2.5µs (< 0.01ms per op)
-[VOICE KOKORO-82M] Load: 5,311ms | Generation: 15.1s | RTF: 3.52x | RAM Delta: +154.4 MB
-[VOICE PIPER-TTS]  Load: 7,637ms | Generation: 743.1ms | RTF: 0.21x | RAM Delta: +61.8 MB
-[STARTUP] MainWindow Init (inc. full desktop & Voice HUD): 336.2ms
+[IMPORTS] Core Modules: 459.0ms | Qt/WebEngine: 44.1ms | Total: 503.1ms
+[DATABASE] 500 Inserts: 56.5ms | 50 LIKE Queries: 10.1ms (WAL + Indexing)
+[MONITOR] Metrics Avg: 2.3ms | Top Process Iter Avg: 250.2ms
+[DETERMINISTIC] Math Avg: 17.6us | Query Avg: 8.8us (< 0.01ms per op)
+[VOICE KOKORO-82M] Load: 2738.5ms | Generation: 14.9s | RTF: 3.46x | RAM Delta: +142.5 MB
+[VOICE PIPER-TTS]  Load: 9571.6ms | Generation: 1010.5ms | RTF: 0.29x | RAM Delta: +74.7 MB
+[STARTUP] MainWindow Init (inc. full desktop & Voice HUD): 243.9ms
 ============================================================
 ```
 
@@ -229,6 +239,10 @@ python tests/test_nova.py
 | **Browser Voice Integration** | **PASS** | Address bar `🎙 NOVA Voice` button opens Voice HUD with page context synchronization |
 | **Control Center Voice Settings** | **PASS** | TTS engine switcher, voice profile picker, speech rate slider, audio cache purger |
 | **Global Keyboard Shortcuts** | **PASS** | `Ctrl+Shift+Space` and `F4` toggle Voice HUD; all desktop shortcuts verified |
+| **Cybernetic Wallpaper & Canvas** | **PASS** | User reference wallpaper loaded and cached; neon corner brackets and sandbox watermark rendered |
+| **Draggable Desktop Shortcuts** | **PASS** | `DesktopIconManager` loaded; 7 shortcuts persisted, movable, double-click launchable via `os.startfile` |
+| **Floating Rounded Pill Dock** | **PASS** | 54px floating dock with pill search bar, quick launchers, active task buttons, tray, and power |
+| **Clean Orb-Centric Voice HUD** | **PASS** | Full conversation dialog moved to slide-out drawer; hero Voice Orb prominently displayed |
 | **Host System Protection** | **PASS** | Zero modifications to Windows bootloaders, registry, partitions, or system files |
 | **Hardware GPU Acceleration** | **NOT TESTED** | Hardware-specific WebGL/Vulkan dependent on local graphics drivers |
 

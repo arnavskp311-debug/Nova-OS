@@ -23,22 +23,32 @@ class AIPolishWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
 
-    def __init__(self, client: OllamaClient, content: str, default_model: str = DEFAULT_MODEL):
-        super().__init__()
+    def __init__(self, client: OllamaClient, content: str, default_model: str = DEFAULT_MODEL, parent=None):
+        super().__init__(parent)
         self.client = client
         self.content = content
         self.default_model = default_model
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
         try:
+            if self._is_cancelled:
+                return
             if not self.client.check_connection():
-                self.error.emit("Ollama is unreachable. Please run 'ollama serve'.")
+                if not self._is_cancelled:
+                    self.error.emit("Ollama is unreachable. Please run 'ollama serve'.")
                 return
 
+            if self._is_cancelled:
+                return
             models = self.client.get_available_models()
             model = self.default_model if self.default_model in models else (models[0] if models else "")
             if not model:
-                self.error.emit("No installed Ollama models found.")
+                if not self._is_cancelled:
+                    self.error.emit("No installed Ollama models found.")
                 return
 
             prompt = (
@@ -47,10 +57,14 @@ class AIPolishWorker(QThread):
             )
             chunks = []
             for c in self.client.stream_chat([{"role": "user", "content": prompt}], model=model):
+                if self._is_cancelled:
+                    return
                 chunks.append(c)
-            self.finished.emit("".join(chunks))
+            if not self._is_cancelled:
+                self.finished.emit("".join(chunks))
         except Exception as e:
-            self.error.emit(str(e))
+            if not self._is_cancelled:
+                self.error.emit(str(e))
 
 class NotesWidget(QWidget):
     def __init__(self, ollama_client: OllamaClient, parent=None):
@@ -384,7 +398,11 @@ class NotesWidget(QWidget):
         self.ai_polish_btn.setEnabled(False)
         self.ai_polish_btn.setText("Polishing with AI...")
 
-        self.polish_worker = AIPolishWorker(self.ollama_client, content)
+        if self.polish_worker and self.polish_worker.isRunning():
+            self.polish_worker.cancel()
+            self.polish_worker.wait(500)
+
+        self.polish_worker = AIPolishWorker(self.ollama_client, content, parent=None)
         self.polish_worker.finished.connect(self.on_polish_success)
         self.polish_worker.error.connect(self.on_polish_error)
         self.polish_worker.start()
@@ -395,10 +413,29 @@ class NotesWidget(QWidget):
         self.ai_polish_btn.setText("✨ AI Polish & Organize")
         self.content_edit.setPlainText(polished_text)
         self.save_current_note()
+        self.polish_worker = None
         QMessageBox.information(self, "AI Polish Complete", "Note has been refined and formatted.")
 
     @Slot(str)
     def on_polish_error(self, err_msg: str):
         self.ai_polish_btn.setEnabled(True)
         self.ai_polish_btn.setText("✨ AI Polish & Organize")
+        self.polish_worker = None
         QMessageBox.warning(self, "AI Polish Failed", f"Error during AI synthesis:\n{err_msg}")
+
+    def cleanup(self):
+        """Cooperatively cancel and join background polish worker before destruction."""
+        if self.polish_worker and self.polish_worker.isRunning():
+            try:
+                self.polish_worker.finished.disconnect(self.on_polish_success)
+                self.polish_worker.error.disconnect(self.on_polish_error)
+            except Exception:
+                pass
+            self.polish_worker.cancel()
+            self.polish_worker.quit()
+            self.polish_worker.wait(1500)
+            self.polish_worker = None
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)

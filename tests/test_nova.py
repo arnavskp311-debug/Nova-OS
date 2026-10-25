@@ -72,9 +72,12 @@ def test_database():
 
 def test_safety_engine():
     print("[TEST] Testing Safety Engine & Sandbox Enforcement...")
-    from nova.safety import analyze_command, execute_command_safely, RiskLevel
+    from nova.safety import (
+        analyze_command, execute_command_safely, execute_python_diagnostic,
+        RiskLevel, SAFE_PYTHON_DIAGNOSTICS
+    )
 
-    # 1. Blocked commands
+    # 1. Blocked commands & destructive patterns
     for blocked_cmd in ["format C:", "bcdedit /set default", "del C:\\windows\\system32", "reg delete HKLM"]:
         res = analyze_command(blocked_cmd)
         assert res["risk"] == RiskLevel.BLOCKED, f"Expected BLOCKED for '{blocked_cmd}', got {res['risk']}"
@@ -82,7 +85,64 @@ def test_safety_engine():
         assert not success, f"Blocked command should not succeed: {blocked_cmd}"
         assert "BLOCKED" in out
 
-    # 2. Simulated commands
+    # 2. Blocked command chaining, pipes, and metacharacters
+    chaining_attempts = [
+        "dir & format C:",
+        "whoami && calc",
+        "echo test | format D:",
+        "dir || echo fail",
+        "dir ; reboot",
+        "dir \n format c:",
+        "echo `whoami`",
+        "echo $(whoami)",
+        "dir > output.txt",
+        "whoami < input.txt",
+        "dir >> output.txt"
+    ]
+    for chained_cmd in chaining_attempts:
+        res = analyze_command(chained_cmd)
+        assert res["risk"] == RiskLevel.BLOCKED, f"Chained command '{chained_cmd}' was NOT blocked!"
+        success, out = execute_command_safely(chained_cmd, approved_by_user=True)
+        assert not success, f"Chained command execution should fail: {chained_cmd}"
+        assert "BLOCKED" in out
+
+    # 3. Blocked sensitive file & credential access
+    sensitive_attempts = [
+        "type AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cookies",
+        "type C:\\Users\\User\\.ssh\\id_rsa",
+        "type .env",
+        "dir AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data",
+        "type credentials.json"
+    ]
+    for sens_cmd in sensitive_attempts:
+        res = analyze_command(sens_cmd)
+        assert res["risk"] == RiskLevel.BLOCKED, f"Sensitive path access '{sens_cmd}' was NOT blocked!"
+        success, out = execute_command_safely(sens_cmd, approved_by_user=True)
+        assert not success, f"Sensitive command execution should fail: {sens_cmd}"
+        assert "BLOCKED" in out
+
+    # 4. Pure-Python diagnostics (Zero shell, zero subprocess)
+    diagnostics = ["whoami", "hostname", "ver", "date /t", "time /t", "echo Hello NOVA OS", "python --version"]
+    for diag_cmd in diagnostics:
+        res = analyze_command(diag_cmd)
+        assert res["risk"] == RiskLevel.SAFE, f"Expected SAFE for diagnostic '{diag_cmd}'"
+        assert res["requires_approval"] is False
+        success, out = execute_command_safely(diag_cmd, approved_by_user=False)
+        assert success is True, f"Diagnostic failed: {diag_cmd} -> {out}"
+        assert len(out.strip()) > 0
+
+    # 5. Sandboxed pure-Python 'dir' command
+    res_dir = analyze_command("dir")
+    assert res_dir["risk"] == RiskLevel.SAFE
+    success, out = execute_command_safely("dir", approved_by_user=False)
+    assert success is True
+    assert "Directory of" in out and "nova" in out.lower()
+
+    # Outside sandbox 'dir' must be blocked
+    res_dir_outside = analyze_command("dir C:\\Windows")
+    assert res_dir_outside["risk"] == RiskLevel.BLOCKED
+
+    # 6. Simulated commands
     for sim_cmd in ["reboot", "shutdown", "poweroff", "kernel-upgrade"]:
         res = analyze_command(sim_cmd)
         assert res["is_simulated"] is True, f"Expected SIMULATED for '{sim_cmd}'"
@@ -90,18 +150,19 @@ def test_safety_engine():
         assert success is True, "Simulated command should succeed cleanly"
         assert "SIMULATION" in out
 
-    # 3. Safe read-only commands
-    res_safe = analyze_command("whoami")
-    assert res_safe["risk"] == RiskLevel.SAFE
-    assert res_safe["requires_approval"] is False
-
-    # 4. Potentially modifying commands require approval
+    # 7. Potentially modifying commands inside sandbox require approval
     res_mod = analyze_command("mkdir sample_test_dir")
     assert res_mod["requires_approval"] is True
-    # Without approval, execution is rejected
     success, out = execute_command_safely("mkdir sample_test_dir", approved_by_user=False)
     assert not success
     assert "APPROVAL REQUIRED" in out
+
+    # Path traversal outside sandbox must be blocked even if approved
+    res_traversal = analyze_command("mkdir ../../evil_directory")
+    assert res_traversal["risk"] == RiskLevel.BLOCKED
+    success, out = execute_command_safely("mkdir ../../evil_directory", approved_by_user=True)
+    assert not success
+    assert "BLOCKED" in out
 
     print("  -> Safety engine tests PASSED.")
 
@@ -778,6 +839,35 @@ def test_crash_prevention_and_font_handling():
     assert hasattr(worker, "cancel"), "Worker must have cooperative cancel method"
     worker.cancel()
     assert worker._is_cancelled is True, "Worker cancel flag must be set"
+
+    from nova.ui.widgets.terminal import CommandWorker
+    cmd_worker = CommandWorker("whoami", approved=True)
+    assert hasattr(cmd_worker, "cancel")
+    cmd_worker.cancel()
+    assert cmd_worker._is_cancelled is True
+
+    from nova.ui.widgets.notes import AIPolishWorker
+    polish_worker = AIPolishWorker(dummy_client, "Sample note")
+    assert hasattr(polish_worker, "cancel")
+    polish_worker.cancel()
+    assert polish_worker._is_cancelled is True
+
+    from nova.ui.widgets.settings import SettingsModelWorker
+    settings_worker = SettingsModelWorker(dummy_client)
+    assert hasattr(settings_worker, "cancel")
+    settings_worker.cancel()
+    assert settings_worker._is_cancelled is True
+
+    from nova.ui.widgets.chat import OllamaStreamWorker, ModelDiscoveryWorker
+    chat_worker = OllamaStreamWorker(dummy_client, [], "test-model")
+    assert hasattr(chat_worker, "cancel")
+    chat_worker.cancel()
+    assert chat_worker._is_cancelled is True
+
+    disc_worker = ModelDiscoveryWorker(dummy_client)
+    assert hasattr(disc_worker, "cancel")
+    disc_worker.cancel()
+    assert disc_worker._is_cancelled is True
 
     print("  -> Crash prevention, font validation & nonfatal fallbacks tests PASSED.")
 

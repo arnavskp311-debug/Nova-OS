@@ -24,16 +24,24 @@ from nova.ollama_client import OllamaClient
 class SettingsModelWorker(QThread):
     models_ready = Signal(list)
 
-    def __init__(self, client: OllamaClient):
-        super().__init__()
+    def __init__(self, client: OllamaClient, parent=None):
+        super().__init__(parent)
         self.client = client
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
         try:
+            if self._is_cancelled:
+                return
             models = self.client.get_available_models(force_refresh=False)
-            self.models_ready.emit(models)
+            if not self._is_cancelled:
+                self.models_ready.emit(models)
         except Exception:
-            self.models_ready.emit([])
+            if not self._is_cancelled:
+                self.models_ready.emit([])
 
 class SettingsWidget(QWidget):
     theme_changed = Signal(str)
@@ -42,6 +50,7 @@ class SettingsWidget(QWidget):
     def __init__(self, ollama_client: OllamaClient, parent=None):
         super().__init__(parent)
         self.ollama_client = ollama_client
+        self._worker: SettingsModelWorker | None = None
         self.setup_ui()
         self.load_settings()
 
@@ -420,12 +429,16 @@ class SettingsWidget(QWidget):
         # Asynchronously fetch models without blocking UI
         self.model_combo.clear()
         self.model_combo.addItem("Loading installed models...")
-        self._worker = SettingsModelWorker(self.ollama_client)
+        if self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self._worker.wait(500)
+        self._worker = SettingsModelWorker(self.ollama_client, parent=None)
         self._worker.models_ready.connect(self._on_models_loaded)
         self._worker.start()
 
     @Slot(list)
     def _on_models_loaded(self, models: list):
+        self._worker = None
         self.model_combo.clear()
         if models:
             self.model_combo.addItems(models)
@@ -434,6 +447,22 @@ class SettingsWidget(QWidget):
                 self.model_combo.setCurrentText(saved_model)
         else:
             self.model_combo.addItem("No models found / Offline")
+
+    def cleanup(self):
+        """Cooperatively cancel and join background model discovery worker before destruction."""
+        if self._worker and self._worker.isRunning():
+            try:
+                self._worker.models_ready.disconnect(self._on_models_loaded)
+            except Exception:
+                pass
+            self._worker.cancel()
+            self._worker.quit()
+            self._worker.wait(1500)
+            self._worker = None
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)
 
     def on_test_connection(self):
         self.ollama_client.host = self.host_input.text().strip()

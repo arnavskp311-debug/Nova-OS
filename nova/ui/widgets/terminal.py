@@ -16,14 +16,21 @@ from nova.ui.widgets.approval_dialog import CommandApprovalDialog
 class CommandWorker(QThread):
     finished = Signal(bool, str)
 
-    def __init__(self, command: str, approved: bool):
-        super().__init__()
+    def __init__(self, command: str, approved: bool, parent=None):
+        super().__init__(parent)
         self.command = command
         self.approved = approved
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
+        if self._is_cancelled:
+            return
         success, output = execute_command_safely(self.command, approved_by_user=self.approved)
-        self.finished.emit(success, output)
+        if not self._is_cancelled:
+            self.finished.emit(success, output)
 
 class TerminalWidget(QWidget):
     def __init__(self, parent=None):
@@ -201,7 +208,11 @@ class TerminalWidget(QWidget):
         self.cmd_input.setEnabled(False)
         self.console.appendPlainText("\n[Executing in unprivileged sandbox...]")
 
-        self.active_worker = CommandWorker(final_cmd, approved=approved)
+        if self.active_worker and self.active_worker.isRunning():
+            self.active_worker.cancel()
+            self.active_worker.wait(500)
+
+        self.active_worker = CommandWorker(final_cmd, approved=approved, parent=None)
         self.active_worker.finished.connect(self.on_command_finished)
         self.active_worker.start()
 
@@ -215,6 +226,22 @@ class TerminalWidget(QWidget):
         self.console.appendPlainText(f"{status_tag}\n{output.strip()}")
         self._scroll_bottom()
         self.active_worker = None
+
+    def cleanup(self):
+        """Cooperatively cancel and join background command worker before destruction."""
+        if self.active_worker and self.active_worker.isRunning():
+            try:
+                self.active_worker.finished.disconnect(self.on_command_finished)
+            except Exception:
+                pass
+            self.active_worker.cancel()
+            self.active_worker.quit()
+            self.active_worker.wait(1500)
+            self.active_worker = None
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)
 
     def _scroll_bottom(self):
         cursor = self.console.textCursor()

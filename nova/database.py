@@ -18,7 +18,7 @@ logger = logging.getLogger("nova.database")
 
 _local_storage = threading.local()
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 def get_connection() -> sqlite3.Connection:
     """Returns a fast, thread-local pooled SQLite connection with WAL mode enabled."""
@@ -171,6 +171,82 @@ def init_db():
             )
         """)
 
+        # Workspaces Table (Schema v4 - Feature 3)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS workspaces (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                theme TEXT DEFAULT 'Cyber Cyan',
+                pinned_apps TEXT DEFAULT '[]',
+                is_active INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # AI Memory Table (Schema v4 - Feature 10)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                approved INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Automation Workflows Table (Schema v4 - Feature 12)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS automation_workflows (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                steps TEXT NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                last_run TIMESTAMP
+            )
+        """)
+
+        # Calendar Events Table (Schema v4 - Feature 13)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS calendar_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                event_date TEXT NOT NULL,
+                start_time TEXT,
+                end_time TEXT,
+                category TEXT DEFAULT 'General',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Desktop Widgets Table (Schema v4 - Feature 6)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS desktop_widgets (
+                id TEXT PRIMARY KEY,
+                widget_type TEXT NOT NULL,
+                title TEXT,
+                content TEXT,
+                x INTEGER DEFAULT 100,
+                y INTEGER DEFAULT 100,
+                width INTEGER DEFAULT 200,
+                height INTEGER DEFAULT 150,
+                is_visible INTEGER DEFAULT 1
+            )
+        """)
+
+        # Browser Extensions Table (Schema v4 - Feature 17)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS browser_extensions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                is_enabled INTEGER DEFAULT 1
+            )
+        """)
+
         # Performance Indexes for sub-millisecond query execution
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, id ASC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_browser_history_url ON browser_history(url)")
@@ -183,11 +259,108 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes(updated_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_notes_title ON notes(title)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_logs_time ON command_logs(executed_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_memory_cat ON ai_memory(category, approved)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(event_date)")
 
         # Record migration records if not present
         cursor.execute("INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (1, 'Baseline schema: chats, notes, settings, logs, browser history & bookmarks')")
         cursor.execute("INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (2, 'Schema v2: browser_downloads tracking and composite indexes')")
         cursor.execute("INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (3, 'Schema v3: desktop essentials (reminders, clipboard history)')")
+        cursor.execute("INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (4, 'Schema v4: 20 NOVA Features (workspaces, ai_memory, automation, calendar, widgets, extensions)')")
+
+        # Seed Default Workspaces (Feature 3)
+        default_workspaces = [
+            ("study", "Study Workspace", "Focus • Learn • Achieve", "Cyber Cyan", json.dumps(["browser", "notes", "files", "chat"]), 1),
+            ("coding", "Coding Workspace", "Build • Debug • Deploy", "Matrix Green", json.dumps(["terminal", "browser", "notes", "files"]), 0),
+            ("research", "Research Workspace", "Explore • Analyze • Synthesize", "Cyber Cyan", json.dumps(["browser", "chat", "notes", "files"]), 0),
+            ("personal", "Personal Workspace", "Organize • Connect • Create", "Royal Violet", json.dumps(["browser", "chat", "notes", "settings"]), 0),
+            ("entertainment", "Entertainment Workspace", "Relax • Stream • Enjoy", "Sunset Orange", json.dumps(["browser", "chat"]), 0)
+        ]
+        for ws_id, name, desc, thm, apps_json, active in default_workspaces:
+            cursor.execute("""
+                INSERT OR IGNORE INTO workspaces (id, name, description, theme, pinned_apps, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (ws_id, name, desc, thm, apps_json, active))
+
+        # Seed Default AI Memories (Feature 10)
+        default_memories = [
+            ("Theme", "Preferred theme", "Dark Blue", 1),
+            ("Workspace", "Workspace", "Study", 1),
+            ("Commands", "Useful command", "Open browser", 1),
+            ("Notes", "Notes", "Focus on goals", 1)
+        ]
+        for cat, k, v, apprv in default_memories:
+            cursor.execute("SELECT id FROM ai_memory WHERE category = ? AND key = ?", (cat, k))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO ai_memory (category, key, value, approved) VALUES (?, ?, ?, ?)", (cat, k, v, apprv))
+
+        # Seed Default Automation Workflows (Feature 12)
+        default_flows = [
+            (
+                "study_flow",
+                "Study Workspace Workflow",
+                "1. Open study workspace, 2. Launch browser, 3. Open notes folder, 4. Start 25 min timer",
+                json.dumps([
+                    {"action": "switch_workspace", "target": "study", "desc": "Switch to Study Workspace"},
+                    {"action": "launch_app", "target": "browser", "desc": "Launch NOVA Cyber Browser"},
+                    {"action": "launch_app", "target": "notes", "desc": "Open NovaPad Knowledge Notes"},
+                    {"action": "start_timer", "duration": 25, "desc": "Start 25 min Focus Timer"}
+                ]),
+                1
+            ),
+            (
+                "optimize_flow",
+                "System Optimization Flow",
+                "1. Purge transient cache, 2. Check system telemetry, 3. Free working set memory",
+                json.dumps([
+                    {"action": "purge_cache", "desc": "Purge transient browser & voice cache"},
+                    {"action": "launch_app", "target": "dashboard", "desc": "Verify System Telemetry Dashboard"}
+                ]),
+                1
+            )
+        ]
+        for wf_id, name, desc, steps, enbl in default_flows:
+            cursor.execute("""
+                INSERT OR IGNORE INTO automation_workflows (id, name, description, steps, is_enabled)
+                VALUES (?, ?, ?, ?, ?)
+            """, (wf_id, name, desc, steps, enbl))
+
+        # Seed Default Browser Extensions (Feature 17)
+        default_exts = [
+            ("reading_mode", "Reading Mode", "Read web articles cleanly without distractions or ads", 1),
+            ("translator", "Translator", "Translate selected text and web pages into multiple languages", 1),
+            ("page_summary", "Page Summary", "AI summary and key takeaway extraction of active page", 1),
+            ("new_tab_widgets", "New Tab Widgets", "Custom widgets and dials for your new tab page", 1)
+        ]
+        for ext_id, name, desc, enbl in default_exts:
+            cursor.execute("""
+                INSERT OR IGNORE INTO browser_extensions (id, name, description, is_enabled)
+                VALUES (?, ?, ?, ?)
+            """, (ext_id, name, desc, enbl))
+
+        # Seed Default Calendar Events (Feature 13)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        default_events = [
+            ("Study session", today_str, "10:00 AM", "12:00 PM", "Study"),
+            ("Project meeting", today_str, "02:00 PM", "03:00 PM", "Work"),
+            ("Gym", today_str, "05:00 PM", "06:00 PM", "Personal")
+        ]
+        for title, ev_date, st, et, cat in default_events:
+            cursor.execute("SELECT id FROM calendar_events WHERE title = ? AND event_date = ?", (title, ev_date))
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO calendar_events (title, event_date, start_time, end_time, category) VALUES (?, ?, ?, ?, ?)", (title, ev_date, st, et, cat))
+
+        # Seed Default Desktop Widgets (Feature 6)
+        default_widgets = [
+            ("clock_cal", "clock_calendar", "Digital Clock & Calendar", "", 820, 30, 260, 210, 1),
+            ("meters", "meters", "CPU & RAM Lab", "", 820, 255, 260, 130, 1),
+            ("sticky_note", "sticky_note", "Stay Focused", "Build amazing things\n- NOVA", 820, 400, 260, 150, 1)
+        ]
+        for w_id, w_type, w_title, w_content, x, y, w, h, vis in default_widgets:
+            cursor.execute("""
+                INSERT OR IGNORE INTO desktop_widgets (id, widget_type, title, content, x, y, width, height, is_visible)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (w_id, w_type, w_title, w_content, x, y, w, h, vis))
 
         conn.commit()
     logger.info(f"Database initialized at {DB_PATH} (Schema v{CURRENT_SCHEMA_VERSION})")
@@ -675,6 +848,241 @@ def purge_transient_cache() -> Dict[str, Any]:
         "freed_mb": freed_mb,
         "purged_items": purged_items
     }
+
+
+# ----------------- Workspaces (Feature 3) -----------------
+
+def get_workspaces() -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM workspaces ORDER BY created_at ASC")
+        rows = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            try:
+                d["pinned_apps"] = json.loads(d.get("pinned_apps", "[]"))
+            except Exception:
+                d["pinned_apps"] = []
+            rows.append(d)
+        return rows
+
+def get_workspace(ws_id: str) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM workspaces WHERE id = ?", (ws_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["pinned_apps"] = json.loads(d.get("pinned_apps", "[]"))
+        except Exception:
+            d["pinned_apps"] = []
+        return d
+
+def set_active_workspace(ws_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE workspaces SET is_active = 0")
+        cursor.execute("UPDATE workspaces SET is_active = 1 WHERE id = ?", (ws_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def create_workspace(ws_id: str, name: str, description: str, theme: str, pinned_apps: list) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO workspaces (id, name, description, theme, pinned_apps, is_active)
+            VALUES (?, ?, ?, ?, ?, 0)
+        """, (ws_id, name, description, theme, json.dumps(pinned_apps)))
+        conn.commit()
+        return True
+
+def delete_workspace(ws_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM workspaces WHERE id = ?", (ws_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ----------------- AI Memory (Feature 10) -----------------
+
+def get_ai_memories(approved_only: bool = False) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if approved_only:
+            cursor.execute("SELECT * FROM ai_memory WHERE approved = 1 ORDER BY created_at DESC")
+        else:
+            cursor.execute("SELECT * FROM ai_memory ORDER BY created_at DESC")
+        return [dict(r) for r in cursor.fetchall()]
+
+def add_ai_memory(category: str, key: str, value: str, approved: int = 1) -> int:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO ai_memory (category, key, value, approved)
+            VALUES (?, ?, ?, ?)
+        """, (category, key, value, approved))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_ai_memory(memory_id: int, category: str, key: str, value: str, approved: int = 1) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE ai_memory
+            SET category = ?, key = ?, value = ?, approved = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (category, key, value, approved, memory_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_ai_memory(memory_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ai_memory WHERE id = ?", (memory_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def clear_all_ai_memory() -> int:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ai_memory")
+        deleted = cursor.rowcount
+        conn.commit()
+        return deleted
+
+# ----------------- Automation Workflows (Feature 12) -----------------
+
+def get_workflows() -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM automation_workflows ORDER BY id ASC")
+        rows = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            try:
+                d["steps"] = json.loads(d.get("steps", "[]"))
+            except Exception:
+                d["steps"] = []
+            rows.append(d)
+        return rows
+
+def get_workflow(wf_id: str) -> Optional[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM automation_workflows WHERE id = ?", (wf_id,))
+        r = cursor.fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        try:
+            d["steps"] = json.loads(d.get("steps", "[]"))
+        except Exception:
+            d["steps"] = []
+        return d
+
+def create_workflow(wf_id: str, name: str, description: str, steps: list) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO automation_workflows (id, name, description, steps, is_enabled)
+            VALUES (?, ?, ?, ?, 1)
+        """, (wf_id, name, description, json.dumps(steps)))
+        conn.commit()
+        return True
+
+def delete_workflow(wf_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM automation_workflows WHERE id = ?", (wf_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def record_workflow_run(wf_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE automation_workflows SET last_run = CURRENT_TIMESTAMP WHERE id = ?", (wf_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ----------------- Calendar Events (Feature 13) -----------------
+
+def get_calendar_events(event_date: Optional[str] = None) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if event_date:
+            cursor.execute("SELECT * FROM calendar_events WHERE event_date = ? ORDER BY start_time ASC", (event_date,))
+        else:
+            cursor.execute("SELECT * FROM calendar_events ORDER BY event_date ASC, start_time ASC")
+        return [dict(r) for r in cursor.fetchall()]
+
+def create_calendar_event(title: str, event_date: str, start_time: str = "", end_time: str = "", category: str = "General") -> int:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO calendar_events (title, event_date, start_time, end_time, category)
+            VALUES (?, ?, ?, ?, ?)
+        """, (title, event_date, start_time, end_time, category))
+        conn.commit()
+        return cursor.lastrowid
+
+def delete_calendar_event(event_id: int) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ----------------- Desktop Widgets (Feature 6) -----------------
+
+def get_desktop_widgets() -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM desktop_widgets")
+        return [dict(r) for r in cursor.fetchall()]
+
+def save_desktop_widget(widget_id: str, widget_type: str, title: str, content: str, x: int, y: int, width: int, height: int, is_visible: int = 1) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO desktop_widgets (id, widget_type, title, content, x, y, width, height, is_visible)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                widget_type = excluded.widget_type,
+                title = excluded.title,
+                content = excluded.content,
+                x = excluded.x,
+                y = excluded.y,
+                width = excluded.width,
+                height = excluded.height,
+                is_visible = excluded.is_visible
+        """, (widget_id, widget_type, title, content, x, y, width, height, is_visible))
+        conn.commit()
+        return True
+
+def delete_desktop_widget(widget_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM desktop_widgets WHERE id = ?", (widget_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+# ----------------- Browser Extensions (Feature 17) -----------------
+
+def get_browser_extensions() -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM browser_extensions ORDER BY id ASC")
+        return [dict(r) for r in cursor.fetchall()]
+
+def set_browser_extension_enabled(ext_id: str, is_enabled: bool) -> bool:
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE browser_extensions SET is_enabled = ? WHERE id = ?", (1 if is_enabled else 0, ext_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
 
 
 

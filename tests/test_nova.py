@@ -515,6 +515,136 @@ def test_nova_voice_system():
 
     print("  -> NOVA Voice system tests PASSED.")
 
+def test_workspaces_and_profiles():
+    print("[TEST] Testing Workspace Profiles & Manager...")
+    from nova.workspace_manager import WorkspaceManager
+
+    manager = WorkspaceManager()
+    profiles = manager.get_all_workspaces()
+    assert len(profiles) >= 5, f"Expected at least 5 profiles, got {len(profiles)}"
+    expected_ids = {"study", "coding", "research", "personal", "entertainment"}
+    actual_ids = {p["id"] for p in profiles}
+    assert expected_ids.issubset(actual_ids), f"Missing profiles: {expected_ids - actual_ids}"
+
+    # Switch profile
+    ok = manager.switch_to("coding")
+    assert ok is True
+    active = manager.load_active_workspace()
+    assert active["id"] == "coding"
+
+    # Custom profile creation & deletion
+    ok = manager.create_custom("gaming", "Gaming", "Custom Gaming Setup", "Neon Cyan", ["browser"])
+    assert ok is True
+    assert any(p["id"] == "gaming" for p in manager.get_all_workspaces())
+    del_ok = manager.remove_custom("gaming")
+    assert del_ok is True
+    assert not any(p["id"] == "gaming" for p in manager.get_all_workspaces())
+    print("  -> Workspace profiles tests PASSED.")
+
+def test_ai_memory_and_privacy():
+    print("[TEST] Testing AI Memory & Privacy Management...")
+    from nova.database import (
+        get_ai_memories, add_ai_memory, update_ai_memory, delete_ai_memory,
+        get_browser_extensions, set_browser_extension_enabled
+    )
+
+    memories = get_ai_memories()
+    assert len(memories) >= 1, "Default seeded AI memories should be present"
+
+    # Add memory
+    mem_id = add_ai_memory("Coding", "Code Style Preference", "Always format with 4 spaces", approved=1)
+    assert mem_id > 0
+    mem_list = get_ai_memories()
+    assert any(m["id"] == mem_id for m in mem_list)
+
+    # Update approval and value
+    ok = update_ai_memory(mem_id, "Coding", "Code Style Preference", "Always format with 4 spaces and docstrings", approved=1)
+    assert ok is True
+    updated = [m for m in get_ai_memories() if m["id"] == mem_id][0]
+    assert updated["approved"] == 1
+    assert "docstrings" in updated["value"]
+
+    # Delete memory
+    delete_ai_memory(mem_id)
+    assert not any(m["id"] == mem_id for m in get_ai_memories())
+
+    # Browser extensions
+    exts = get_browser_extensions()
+    assert len(exts) >= 4, f"Expected 4 browser extensions, got {len(exts)}"
+    set_browser_extension_enabled("reading_mode", True)
+    ext_dict = {e["id"]: e["is_enabled"] for e in get_browser_extensions()}
+    assert ext_dict.get("reading_mode") == 1
+    print("  -> AI memory and privacy tests PASSED.")
+
+def test_automation_workflows():
+    print("[TEST] Testing Automation Workflows...")
+    from nova.database import (
+        get_workflows, create_workflow, record_workflow_run, delete_workflow
+    )
+
+    wfs = get_workflows()
+    assert len(wfs) >= 2, "Default seeded workflows should be present"
+
+    # Create custom workflow
+    steps = [
+        {"name": "Open Notes", "action": "open_app:notes"},
+        {"name": "Set Study Workspace", "action": "set_workspace:study"}
+    ]
+    wf_id = "test_sprint_flow"
+    ok = create_workflow(wf_id, "Sprint Plan Flow", "Prepares sprint planning tools", steps)
+    assert ok is True
+    all_wfs = get_workflows()
+    assert any(w["id"] == wf_id for w in all_wfs)
+
+    # Record run
+    run_ok = record_workflow_run(wf_id)
+    assert run_ok is True
+
+    # Delete
+    del_ok = delete_workflow(wf_id)
+    assert del_ok is True
+    assert not any(w["id"] == wf_id for w in get_workflows())
+    print("  -> Automation workflows tests PASSED.")
+
+def test_calendar_and_reminders_system():
+    print("[TEST] Testing Calendar & Reminders System...")
+    from nova.database import (
+        get_calendar_events, create_calendar_event, delete_calendar_event
+    )
+
+    ev_id = create_calendar_event("Sprint Milestone", "2026-10-25", "14:00", "15:00", category="Deliverable")
+    assert ev_id > 0
+    events = get_calendar_events()
+    assert any(e["id"] == ev_id for e in events)
+    delete_calendar_event(ev_id)
+    assert not any(e["id"] == ev_id for e in get_calendar_events())
+    print("  -> Calendar and reminders system tests PASSED.")
+
+def test_desktop_widgets_system():
+    print("[TEST] Testing Desktop Widgets System...")
+    from PySide6.QtWidgets import QApplication, QWidget
+    from nova.database import get_desktop_widgets, save_desktop_widget, delete_desktop_widget
+    from nova.ui.desktop_widgets import ClockCalendarWidget, SystemMetersWidget, StickyNoteWidget
+
+    w_id = "test_note_unit"
+    ok = save_desktop_widget(w_id, "sticky_note", "Test Sticky", "Widget Unit Test Content", 50, 50, 200, 150)
+    assert ok is True
+    widgets = get_desktop_widgets()
+    assert any(w["id"] == w_id for w in widgets)
+    del_ok = delete_desktop_widget(w_id)
+    assert del_ok is True
+
+    # Test widget classes instantiation
+    app = QApplication.instance() or QApplication(sys.argv)
+    parent = QWidget()
+    clock = ClockCalendarWidget(widget_id="test_clock", parent=parent)
+    meters = SystemMetersWidget(widget_id="test_meters", parent=parent)
+    note = StickyNoteWidget(widget_id="test_note", initial_text="Sample note", parent=parent)
+    assert clock is not None
+    assert meters is not None
+    assert note is not None
+    print("  -> Desktop widgets system tests PASSED.")
+
 def test_ui_instantiation():
     print("[TEST] Testing PySide6 UI Instantiation & Shortcuts...")
     from PySide6.QtWidgets import QApplication
@@ -569,6 +699,20 @@ def test_ui_instantiation():
     window.taskbar.set_ai_status(False, "", checking=False)
     assert "AI OFFLINE" in window.taskbar.ai_status_lbl.text()
 
+    # Verify Workspace Manager & Desktop Widgets on Canvas
+    assert hasattr(window, "workspace_manager"), "WorkspaceManager must be attached to MainWindow"
+    assert hasattr(window.desktop_canvas, "desktop_widgets"), "desktop_widgets must exist on DesktopCanvas"
+    assert len(window.desktop_canvas.desktop_widgets) >= 3, "At least 3 desktop widgets should be initialized"
+
+    # Verify Launching all 8 New NOVA Applications
+    new_apps = ["workspace", "backup", "docsearch", "memory", "automation", "calendar", "privacy", "novasearch"]
+    for app_id in new_apps:
+        window.launch_app(app_id)
+        assert app_id in window.windows, f"App '{app_id}' should be registered in active windows"
+        frame, _ = window.windows[app_id]
+        assert frame is not None, f"WindowFrame for '{app_id}' must not be None"
+        assert frame.content_widget is not None, f"Content widget for '{app_id}' must be instantiated"
+
     # Test toggles
     window.toggle_search()
     assert window.search_dialog.isVisible()
@@ -589,6 +733,11 @@ def run_all():
     print("=== STARTING NOVA OS VERIFICATION SUITE ===")
     test_database()
     test_database_migrations_and_backups()
+    test_workspaces_and_profiles()
+    test_ai_memory_and_privacy()
+    test_automation_workflows()
+    test_calendar_and_reminders_system()
+    test_desktop_widgets_system()
     test_reminders_clipboard_and_cache()
     test_deterministic_actions()
     test_file_viewer_and_logs()

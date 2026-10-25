@@ -115,12 +115,27 @@ class SettingsWidget(QWidget):
 
         layout.addWidget(voice_group)
 
-        # Visual Theme Group
-        theme_group = QGroupBox("Interface Appearance & Cyber Accents")
+        # Visual Theme Group (Matching Panel 7)
+        theme_group = QGroupBox("NOVA Themes & Icon Packs")
         theme_group.setStyleSheet("QGroupBox { font-weight: bold; color: #b026ff; border: 1px solid rgba(176, 38, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
         theme_layout = QVBoxLayout(theme_group)
         theme_layout.setSpacing(10)
 
+        # Theme Archetype Row
+        t_row = QHBoxLayout()
+        t_row.addWidget(QLabel("Interface Theme:"))
+        self.theme_preset_combo = QComboBox()
+        self.theme_preset_combo.addItems([
+            "Cyber Dark (Default)",
+            "Cyber Neon Glow",
+            "Matrix Emerald Dark",
+            "High Contrast Daylight"
+        ])
+        t_row.addWidget(self.theme_preset_combo)
+        t_row.addStretch()
+        theme_layout.addLayout(t_row)
+
+        # Accent Neon Color Row
         accent_row = QHBoxLayout()
         accent_row.addWidget(QLabel("Accent Neon Color:"))
         self.accent_combo = QComboBox()
@@ -130,6 +145,27 @@ class SettingsWidget(QWidget):
         accent_row.addWidget(self.accent_combo)
         accent_row.addStretch()
         theme_layout.addLayout(accent_row)
+
+        # Icon Pack Selector (Matching Panel 7: NOVA Default, Neon, Minimal)
+        icon_row = QHBoxLayout()
+        icon_row.addWidget(QLabel("Desktop Icon Pack:"))
+        self.icon_pack_combo = QComboBox()
+        self.icon_pack_combo.addItems([
+            "NOVA Cyber (Default)",
+            "Neon Glow Extended",
+            "Minimalist Monoline"
+        ])
+        saved_pack = get_setting("icon_pack", "NOVA Cyber (Default)")
+        self.icon_pack_combo.setCurrentText(saved_pack)
+        self.icon_pack_combo.currentTextChanged.connect(lambda p: set_setting("icon_pack", p))
+        icon_row.addWidget(self.icon_pack_combo)
+        icon_row.addStretch()
+
+        reset_theme_btn = QPushButton("↺ Reset Theme Defaults")
+        reset_theme_btn.setStyleSheet("background: #151d30; border: 1px solid rgba(0, 240, 255, 0.3); color: #00f0ff; padding: 4px 10px; border-radius: 4px;")
+        reset_theme_btn.clicked.connect(self.reset_theme_defaults)
+        icon_row.addWidget(reset_theme_btn)
+        theme_layout.addLayout(icon_row)
 
         layout.addWidget(theme_group)
 
@@ -300,6 +336,15 @@ class SettingsWidget(QWidget):
 
     def on_accent_changed(self, new_accent: str):
         self.theme_changed.emit(new_accent)
+
+    def reset_theme_defaults(self):
+        self.accent_combo.setCurrentText(DEFAULT_ACCENT)
+        self.theme_preset_combo.setCurrentText("Cyber Dark (Default)")
+        self.icon_pack_combo.setCurrentText("NOVA Cyber (Default)")
+        set_setting("accent_color", DEFAULT_ACCENT)
+        set_setting("icon_pack", "NOVA Cyber (Default)")
+        self.theme_changed.emit(DEFAULT_ACCENT)
+        QMessageBox.information(self, "Theme Reset", "Restored default NOVA Cyber Cyan theme and icon pack.")
 
     def save_settings(self):
         perf_mode = self.perf_combo.currentText()

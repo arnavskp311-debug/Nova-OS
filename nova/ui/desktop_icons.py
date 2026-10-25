@@ -177,15 +177,27 @@ class DesktopIconWidget(QWidget):
         """)
 
         open_act = menu.addAction(f"Open '{self.data.get('title')}'")
+        open_loc_act = menu.addAction("Open File Location")
         menu.addSeparator()
         rename_act = menu.addAction("Rename Shortcut")
-        remove_act = menu.addAction("Remove Shortcut from Desktop")
+        remove_act = menu.addAction("Delete Shortcut")
         menu.addSeparator()
-        prop_act = menu.addAction("Shortcut Properties")
+        prop_act = menu.addAction("Properties")
 
         chosen = menu.exec(global_pos)
         if chosen == open_act:
             self.activated.emit(self.data)
+        elif chosen == open_loc_act:
+            target = self.data.get("target", "")
+            s_type = self.data.get("type", "app")
+            if s_type in ("file", "folder") and os.path.exists(target):
+                import subprocess
+                subprocess.Popen(f'explorer /select,"{os.path.abspath(target)}"')
+            else:
+                QMessageBox.information(
+                    self, "File Location",
+                    f"Target Application: {self.data.get('title')}\nIdentifier: {target}\nIntegrated into NOVA Desktop Environment."
+                )
         elif chosen == rename_act:
             new_title, ok = QInputDialog.getText(
                 self, "Rename Shortcut", "Enter new name for shortcut:", text=self.data.get("title", "")
@@ -195,8 +207,8 @@ class DesktopIconWidget(QWidget):
         elif chosen == remove_act:
             reply = QMessageBox.question(
                 self,
-                "Remove Shortcut",
-                f"Remove the desktop shortcut for '{self.data.get('title')}'?\n(The original file or application will NOT be deleted.)",
+                "Delete Shortcut",
+                f"Delete the desktop shortcut for '{self.data.get('title')}'?\n(The original file or application will NOT be deleted.)",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.Yes:
@@ -211,7 +223,8 @@ class DesktopIconWidget(QWidget):
                 f"Type: {s_type}\n"
                 f"Target: {target}\n"
                 f"Position: X={self.x()}, Y={self.y()}\n"
-                f"Status: Safe Desktop Shortcut"
+                f"Status: Safe Desktop Shortcut\n"
+                f"Environment: NOVA OS Workspace"
             )
 
 
@@ -326,6 +339,16 @@ class DesktopIconManager:
                 col += 1
 
         self.save_shortcuts()
+
+    def restore_default_layout(self, on_activate_callback=None):
+        """Restores default desktop shortcuts and grid positioning."""
+        import copy
+        self.shortcuts = copy.deepcopy(DEFAULT_SHORTCUTS)
+        self.save_shortcuts()
+        if on_activate_callback:
+            self.render_icons(on_activate_callback)
+        else:
+            self.arrange_grid()
 
     def _on_icon_moved(self, data: dict, x: int, y: int):
         for s in self.shortcuts:

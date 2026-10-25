@@ -7,7 +7,7 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
     QLabel, QFrame, QMenu, QWidgetAction, QLineEdit,
-    QGridLayout, QApplication
+    QGridLayout, QApplication, QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QPoint
 from PySide6.QtGui import QFont, QCursor
@@ -21,13 +21,13 @@ class LauncherPopup(QFrame):
         super().__init__(parent)
         self.setObjectName("GlassPanel")
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
-        self.setFixedSize(360, 480)
+        self.setFixedSize(380, 520)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
         # Header
         top_box = QHBoxLayout()
@@ -53,12 +53,39 @@ class LauncherPopup(QFrame):
         self.search_box.textChanged.connect(self.filter_apps)
         layout.addWidget(self.search_box)
 
-        # Apps Grid
+        # Scroll Area for Applications
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: #080d1a;
+                width: 6px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(0, 240, 255, 0.3);
+                border-radius: 3px;
+            }
+        """)
+
+        # Apps Grid (All 20 features)
         self.apps = [
-            ("browser", "🌐 NOVA Cyber Browser", "Secure web runtime with Safe Chrome Integration"),
-            ("dashboard", "📊 Telemetry Dashboard", "Live CPU, RAM, Disk & Network diagnostics"),
+            ("browser", "🌐 NOVA Cyber Browser", "Secure web runtime with Safe Chrome Companion"),
+            ("dashboard", "📊 Performance Center", "Live CPU, RAM, Disk & Network diagnostics"),
+            ("workspace", "🗂 Workspace Profiles", "Switch between Study, Coding, Research & Personal"),
+            ("backup", "📦 Backup & Restore", "Snapshot settings, workspaces, notes & browser data"),
+            ("docsearch", "🔍 AI Document Search", "Private local search across documents and project files"),
             ("chat", "🤖 NOVA AI Assistant", "Local LLM chat powered by Ollama"),
-            ("notes", "📝 NovaPad Knowledge", "Local notes & scheduled reminders"),
+            ("notes", "📝 NovaPad Knowledge", "Local notes & markdown documentation"),
+            ("calendar", "📅 Calendar & Reminders", "Schedule agendas, tasks and focus timers"),
+            ("automation", "⚡ Automation Studio", "Create and execute safe custom workflows"),
+            ("memory", "🧠 AI Memory Manager", "View and control user-approved AI memories"),
+            ("privacy", "🛡️ Privacy Center", "Control data retention, history & voice permissions"),
+            ("novasearch", "❖ NOVA Search Portal", "Independent cyber search engine prototype"),
             ("terminal", "💻 Cyber Safe Terminal", "Interactive sandboxed shell environment"),
             ("files", "📁 Sandbox File Vault", "Project file explorer & storage health"),
             ("settings", "⚙ Control Center", "Configure AI models, themes & security"),
@@ -94,8 +121,8 @@ class LauncherPopup(QFrame):
             self.apps_layout.addWidget(btn)
             self.app_buttons.append((app_id, name, desc, btn))
 
-        layout.addWidget(self.apps_container)
-        layout.addStretch()
+        self.scroll.setWidget(self.apps_container)
+        layout.addWidget(self.scroll, stretch=1)
 
         # Bottom Safeguard & Exit Bar
         footer = QHBoxLayout()

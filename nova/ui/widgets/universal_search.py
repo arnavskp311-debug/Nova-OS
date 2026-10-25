@@ -124,19 +124,25 @@ class UniversalSearchDialog(QFrame):
 
     def populate_default_apps(self):
         self.results_list.clear()
-        apps = [
-            ("browser", "🌐 NOVA Cyber Browser", "Secure web runtime with Safe Chrome Companion"),
-            ("dashboard", "📊 System Telemetry Dashboard", "Live CPU, RAM, Disk & Network diagnostics"),
-            ("chat", "🤖 NOVA AI Assistant", "Local LLM chat powered by Ollama"),
-            ("notes", "📝 NovaPad Knowledge", "Local notes & markdown documentation"),
-            ("terminal", "💻 Cyber Safe Terminal", "Interactive sandboxed shell environment"),
-            ("files", "📁 Sandbox File Explorer", "Project files & storage health manager"),
-            ("settings", "⚙ Control Center", "Configure AI models, themes, performance & backups"),
-            ("clipboard", "📋 Clipboard History", "Browse and restore recent copied snippets"),
-            ("reminders", "🔔 Reminders & Scheduler", "View and schedule urgent directives"),
+        commands = [
+            ("browser", "🌐 Open NOVA Browser", "Alt+B", "Fast, private browser with AI intelligence"),
+            ("files", "📁 Open File Manager", "Alt+F", "Safe sandbox files and storage explorer"),
+            ("workspace", "🗂 Switch Workspace", "Alt+W", "Study, Coding, Research, Personal profiles"),
+            ("settings", "⚙ Open Settings", "Alt+S", "Themes, AI endpoints, performance & security"),
+            ("docsearch", "🔍 Search Documents", "Alt+D", "AI document search across local projects & notes"),
+            ("calculate", "🧮 Calculate", "Alt+C", "Fast math expressions, unit conversions & time"),
+            ("dashboard", "📊 Performance Center", "Ctrl+1", "Real CPU, RAM, disk & network diagnostics"),
+            ("chat", "🤖 NOVA AI Assistant", "Ctrl+2", "Local offline LLM powered by Ollama"),
+            ("automation", "⚡ Automation Studio", "", "Create and execute safe custom workflows"),
+            ("calendar", "📅 Calendar & Reminders", "", "Agendas, daily schedule & countdown timers"),
+            ("memory", "🧠 AI Memory Manager", "", "View and control user-approved AI memories"),
+            ("privacy", "🛡️ Privacy Dashboard", "", "History, permissions, microphone & retention controls"),
+            ("backup", "📦 Backup & Restore", "", "Snapshot settings, workspaces, notes & browser data"),
+            ("clipboard", "📋 Clipboard History", "Ctrl+Shift+V", "Browse and restore recent clipboard snippets"),
         ]
-        for app_id, title, desc in apps:
-            item = QListWidgetItem(f"{title}  —  {desc}")
+        for app_id, title, shortcut, desc in commands:
+            sc_badge = f"[{shortcut}]" if shortcut else ""
+            item = QListWidgetItem(f"{title:<34} {sc_badge:>10}   •   {desc}")
             item.setData(Qt.UserRole, {"type": "app", "id": app_id})
             self.results_list.addItem(item)
 
@@ -239,6 +245,11 @@ class UniversalSearchDialog(QFrame):
         data_type = data.get("type")
 
         if data_type == "app":
+            if data["id"] == "calculate":
+                self.show()
+                self.input_edit.setText("25 * 40")
+                self.input_edit.selectAll()
+                return
             self.app_launch_requested.emit(data["id"], data)
 
         elif data_type == "web":

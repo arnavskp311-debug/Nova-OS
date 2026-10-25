@@ -29,6 +29,8 @@ from nova.ui.widgets.quick_settings import QuickSettingsFlyout
 from nova.voice import VoiceEngine, VoiceOrchestrator, BrowserVoiceContext
 from nova.ui.voice_ui import NovaVoiceHUD
 from nova.ui.desktop_icons import DesktopIconManager
+from nova.workspace_manager import WorkspaceManager
+from nova.ui.desktop_widgets import ClockCalendarWidget, SystemMetersWidget, StickyNoteWidget
 
 from nova.ui.widgets.dashboard import DashboardWidget
 from nova.ui.widgets.chat import ChatWidget
@@ -37,6 +39,14 @@ from nova.ui.widgets.terminal import TerminalWidget
 from nova.ui.widgets.file_viewer import FileViewerWidget
 from nova.ui.widgets.settings import SettingsWidget
 from nova.ui.widgets.browser import BrowserWidget
+from nova.ui.widgets.workspace import WorkspaceWidget
+from nova.ui.widgets.backup_restore import BackupRestoreWidget
+from nova.ui.widgets.document_search import DocumentSearchWidget
+from nova.ui.widgets.ai_memory import AIMemoryWidget
+from nova.ui.widgets.automation_studio import AutomationStudioWidget
+from nova.ui.widgets.calendar_widget import CalendarRemindersWidget
+from nova.ui.widgets.privacy_center import PrivacyCenterWidget
+from nova.ui.widgets.nova_search import NovaSearchWidget
 
 
 class AIStatusWorker(QThread):
@@ -224,9 +234,34 @@ class DesktopCanvas(QWidget):
         super().resizeEvent(event)
         self.icon_layer.setGeometry(0, 0, self.width(), self.height())
         self.icon_layer.lower()
+        if hasattr(self, "clock_widget") and self.clock_widget:
+            x = max(100, self.width() - 280)
+            self.clock_widget.move(x, 30)
+            if hasattr(self, "meters_widget") and self.meters_widget:
+                self.meters_widget.move(x, 255)
+            if hasattr(self, "sticky_widget") and self.sticky_widget:
+                self.sticky_widget.move(x, 400)
 
     def setup_icons(self, on_activate_callback):
         self.icon_manager.render_icons(on_activate_callback)
+        self.icon_layer.lower()
+
+    def setup_widgets(self, system_monitor):
+        """Instantiates Desktop Widgets (Clock, Calendar, Meters, Sticky Note) on icon layer."""
+        w = max(900, self.width())
+        x = max(100, w - 280)
+        self.clock_widget = ClockCalendarWidget(parent=self.icon_layer)
+        self.clock_widget.move(x, 30)
+        self.clock_widget.show()
+
+        self.meters_widget = SystemMetersWidget(system_monitor, parent=self.icon_layer)
+        self.meters_widget.move(x, 255)
+        self.meters_widget.show()
+
+        self.sticky_widget = StickyNoteWidget(parent=self.icon_layer)
+        self.sticky_widget.move(x, 400)
+        self.sticky_widget.show()
+        self.desktop_widgets = [self.clock_widget, self.meters_widget, self.sticky_widget]
         self.icon_layer.lower()
 
     def contextMenuEvent(self, event):
@@ -256,6 +291,7 @@ class DesktopCanvas(QWidget):
         act_clip = menu.addAction("📋 Clipboard History (Ctrl+Shift+V)")
         menu.addSeparator()
         act_grid = menu.addAction("🔲 Auto-Arrange Desktop Icons")
+        act_restore_layout = menu.addAction("↺ Restore Default Desktop Layout")
         act_add_app = menu.addAction("➕ Add Application Shortcut...")
         act_add_file = menu.addAction("📁 Add File/Folder Shortcut...")
         menu.addSeparator()
@@ -271,6 +307,11 @@ class DesktopCanvas(QWidget):
             main_win.toggle_clipboard_history()
         elif chosen == act_grid:
             self.icon_manager.arrange_grid()
+        elif chosen == act_restore_layout:
+            callback = getattr(main_win, "_on_desktop_icon_activated", None)
+            self.icon_manager.restore_default_layout(callback)
+            if hasattr(main_win, "notify"):
+                main_win.notify("DESKTOP RESTORED", "Default layout and shortcuts restored.", "info", 3000)
         elif chosen == act_add_app and hasattr(main_win, "_on_desktop_icon_activated"):
             self._prompt_add_app_shortcut(main_win)
         elif chosen == act_add_file and hasattr(main_win, "_on_desktop_icon_activated"):
@@ -347,6 +388,10 @@ class MainWindow(QMainWindow):
         saved_host = get_setting("ollama_host", "http://127.0.0.1:11434")
         self.ollama_client = OllamaClient(host=saved_host)
 
+        # Workspace Manager (Feature 3)
+        self.workspace_manager = WorkspaceManager(self)
+        self.workspace_manager.workspace_switched.connect(self._on_workspace_switched)
+
         # Open Window Tracking: win_id -> (WindowFrame, is_visible)
         self.windows = {}
         self._stagger_offset = 0
@@ -354,6 +399,7 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.setup_shortcuts()
         self.desktop_canvas.setup_icons(self._on_desktop_icon_activated)
+        self.desktop_canvas.setup_widgets(self.system_monitor)
         self.apply_theme(get_setting("accent_color", DEFAULT_ACCENT))
 
         # Check due reminders periodically (every 10 seconds)
@@ -483,6 +529,14 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+6"), self, lambda: self.launch_app("files"))
         QShortcut(QKeySequence("Ctrl+7"), self, lambda: self.launch_app("settings"))
 
+        # Command Palette Fast Directives (Panel 2: Alt+B, Alt+F, Alt+W, Alt+S, Alt+D, Alt+C)
+        QShortcut(QKeySequence("Alt+B"), self, lambda: self.launch_app("browser"))
+        QShortcut(QKeySequence("Alt+F"), self, lambda: self.launch_app("files"))
+        QShortcut(QKeySequence("Alt+W"), self, lambda: self.launch_app("workspace"))
+        QShortcut(QKeySequence("Alt+S"), self, lambda: self.launch_app("settings"))
+        QShortcut(QKeySequence("Alt+D"), self, lambda: self.launch_app("docsearch"))
+        QShortcut(QKeySequence("Alt+C"), self, self.toggle_search_calc)
+
     def apply_theme(self, accent_name: str):
         self.setStyleSheet(get_stylesheet(accent_name))
 
@@ -565,6 +619,56 @@ class MainWindow(QMainWindow):
             title = "CONTROL CENTER"
             icon = "⚙"
             default_size = (540, 560)
+        elif app_id == "workspace":
+            widget = WorkspaceWidget(self.workspace_manager)
+            widget.workspace_applied.connect(self._on_workspace_applied)
+            widget.app_launch_requested.connect(self.launch_app)
+            title = "WORKSPACE MANAGER"
+            icon = "🗂"
+            default_size = (720, 500)
+        elif app_id == "backup":
+            widget = BackupRestoreWidget()
+            widget.notification_requested.connect(self.notify)
+            title = "BACKUP & RESTORE"
+            icon = "📦"
+            default_size = (700, 520)
+        elif app_id == "docsearch":
+            widget = DocumentSearchWidget()
+            widget.file_open_requested.connect(self.launch_app)
+            title = "AI DOCUMENT SEARCH"
+            icon = "🔍"
+            default_size = (680, 520)
+        elif app_id == "memory":
+            widget = AIMemoryWidget()
+            widget.notification_requested.connect(self.notify)
+            title = "NOVA MEMORY"
+            icon = "🧠"
+            default_size = (640, 480)
+        elif app_id == "automation":
+            widget = AutomationStudioWidget()
+            widget.action_requested.connect(self._on_automation_action)
+            widget.notification_requested.connect(self.notify)
+            title = "AUTOMATION STUDIO"
+            icon = "⚡"
+            default_size = (680, 500)
+        elif app_id == "calendar":
+            widget = CalendarRemindersWidget()
+            widget.notification_requested.connect(self.notify)
+            title = "CALENDAR & REMINDERS"
+            icon = "📅"
+            default_size = (720, 520)
+        elif app_id == "privacy":
+            widget = PrivacyCenterWidget()
+            widget.notification_requested.connect(self.notify)
+            title = "PRIVACY CENTER"
+            icon = "🛡️"
+            default_size = (680, 520)
+        elif app_id == "novasearch":
+            widget = NovaSearchWidget()
+            widget.search_activated.connect(self._on_search_portal_action)
+            title = "NOVA SEARCH PORTAL"
+            icon = "❖"
+            default_size = (720, 540)
         else:
             return
 
@@ -629,6 +733,42 @@ class MainWindow(QMainWindow):
             self.search_dialog.hide()
         else:
             self.search_dialog.show_centered(self)
+
+    def toggle_search_calc(self):
+        """Opens Command Palette focused on calculator expression (Alt+C)."""
+        self.toggle_search()
+        if hasattr(self, "search_dialog") and self.search_dialog:
+            self.search_dialog.input_edit.setText("25 * 40")
+            self.search_dialog.input_edit.selectAll()
+
+    def _on_workspace_applied(self, ws: dict):
+        """Applies theme and notifies user when a workspace profile is activated."""
+        theme = ws.get("theme", "Cyber Cyan")
+        self.apply_theme(theme)
+        self.notify("WORKSPACE PROFILE ACTIVATED", f"Switched to {ws['name']}\nFocus: {ws.get('description', '')}", "info", 4000)
+
+    def _on_workspace_switched(self, ws: dict):
+        self._on_workspace_applied(ws)
+
+    def _on_automation_action(self, action_name: str, params: dict):
+        """Dispatches sequential actions from Automation Studio."""
+        if action_name == "launch_app":
+            self.launch_app(params.get("app_id", "browser"))
+        elif action_name == "switch_workspace":
+            self.workspace_manager.switch_to(params.get("workspace_id", "study"))
+        elif action_name == "purge_cache":
+            from nova.database import purge_transient_cache
+            purge_transient_cache()
+            self.notify("AUTOMATION", "Purged transient system cache.", "info")
+        elif action_name == "start_timer":
+            self.launch_app("calendar")
+
+    def _on_search_portal_action(self, action_type: str, payload: dict):
+        """Dispatches results from independent NOVA Search portal."""
+        if action_type == "web":
+            self.launch_app("browser", url=payload.get("url"))
+        elif action_type == "launch_app":
+            self.launch_app(payload.get("app_id", "browser"))
 
     def toggle_quick_settings(self):
         """Toggles the Quick Settings flyout panel."""

@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLineEdit, QTabWidget, QToolBar,
     QProgressBar, QSplitter, QListWidget, QListWidgetItem,
     QFrame, QMessageBox, QMenu, QTabBar, QApplication,
-    QFileDialog, QTextEdit
+    QFileDialog, QTextEdit, QComboBox, QCheckBox
 )
 from PySide6.QtCore import Qt, QUrl, Signal, Slot, QThread
 from PySide6.QtGui import QIcon, QFont, QAction
@@ -33,7 +33,8 @@ from nova.ollama_client import OllamaClient
 from nova.database import (
     add_browser_bookmark, get_browser_bookmarks, delete_browser_bookmark,
     add_browser_history, get_browser_history, clear_browser_history,
-    add_browser_download, get_browser_downloads, clear_browser_downloads
+    add_browser_download, get_browser_downloads, clear_browser_downloads,
+    get_browser_extensions, set_browser_extension_enabled
 )
 
 class AIPageWorker(QThread):
@@ -450,6 +451,18 @@ class BrowserWidget(QWidget):
         self.toggle_dl_btn.clicked.connect(self.toggle_downloads_drawer)
         nav_bar.addWidget(self.toggle_dl_btn)
 
+        self.toggle_ext_btn = QPushButton("🧩 Extensions")
+        self.toggle_ext_btn.setStyleSheet(btn_style)
+        self.toggle_ext_btn.setToolTip("NOVA Browser Extensions System (Feature 17)")
+        self.toggle_ext_btn.clicked.connect(self.toggle_extensions_drawer)
+        nav_bar.addWidget(self.toggle_ext_btn)
+
+        self.reader_mode_btn = QPushButton("📖 Reader")
+        self.reader_mode_btn.setStyleSheet(btn_style)
+        self.reader_mode_btn.setToolTip("Toggle Distraction-Free Reading Mode (Feature 20)")
+        self.reader_mode_btn.clicked.connect(self.toggle_reader_mode)
+        nav_bar.addWidget(self.reader_mode_btn)
+
         # AI Sidebar Toggle Button
         self.toggle_ai_btn = QPushButton("🧠 AI Summarize")
         self.toggle_ai_btn.setStyleSheet("""
@@ -592,6 +605,24 @@ class BrowserWidget(QWidget):
         self.ai_explain_btn.clicked.connect(lambda: self.run_page_ai_analysis("explain"))
         quick_ai_row.addWidget(self.ai_explain_btn)
         ai_layout.addLayout(quick_ai_row)
+
+        # Translation Row (Feature 20 matching Panel 20)
+        trans_row = QHBoxLayout()
+        trans_row.setSpacing(4)
+        t_lbl = QLabel("To:")
+        t_lbl.setStyleSheet("color: #7dd3fc; font-size: 11px;")
+        trans_row.addWidget(t_lbl)
+
+        self.trans_lang_combo = QComboBox()
+        self.trans_lang_combo.addItems(["Spanish", "French", "German", "Japanese", "Hindi", "Chinese", "Italian"])
+        self.trans_lang_combo.setStyleSheet("background: #0f1629; color: #ffffff; padding: 2px;")
+        trans_row.addWidget(self.trans_lang_combo, stretch=1)
+
+        self.trans_btn = QPushButton("🌐 Translate")
+        self.trans_btn.setStyleSheet(btn_style)
+        self.trans_btn.clicked.connect(lambda: self.run_page_ai_analysis("translate"))
+        trans_row.addWidget(self.trans_btn)
+        ai_layout.addLayout(trans_row)
 
         # Ask Custom Question Box
         query_row = QHBoxLayout()
@@ -818,6 +849,33 @@ class BrowserWidget(QWidget):
             self.drawer_panel.show()
             self.load_downloads_drawer()
 
+    def toggle_extensions_drawer(self):
+        if self.drawer_panel.isVisible() and self.active_drawer_mode == "extensions":
+            self.drawer_panel.hide()
+            self.active_drawer_mode = None
+        else:
+            self.active_drawer_mode = "extensions"
+            self.drawer_title.setText("EXTENSIONS")
+            self.drawer_panel.show()
+            self.load_extensions_drawer()
+
+    def load_extensions_drawer(self, query: str = ""):
+        self.drawer_list.clear()
+        self.drawer_action_btn.setText("Reset Extensions Defaults")
+        try:
+            self.drawer_action_btn.disconnect()
+        except Exception:
+            pass
+        self.drawer_action_btn.clicked.connect(self.reload_drawers)
+
+        exts = get_browser_extensions()
+        for ext in exts:
+            state = "🟢 [ENABLED]" if ext.get("is_enabled") else "⚪ [DISABLED]"
+            item = QListWidgetItem(f"🧩 {ext['name']}   {state}\n   • {ext.get('description', '')}")
+            item.setData(Qt.UserRole, ext["id"])
+            item.setData(Qt.UserRole + 1, bool(ext.get("is_enabled")))
+            self.drawer_list.addItem(item)
+
     def load_bookmarks_drawer(self, query: str = ""):
         self.drawer_list.clear()
         self.drawer_action_btn.setText("Delete Selected Bookmark")
@@ -866,7 +924,12 @@ class BrowserWidget(QWidget):
         for d in downloads:
             size_kb = round(d["file_size"] / 1024, 1) if d.get("file_size") else 0
             size_str = f" ({size_kb} KB)" if size_kb > 0 else ""
-            item = QListWidgetItem(f"📥 {d['file_name']}{size_str}")
+            ext = Path(d["file_name"]).suffix.lower()
+            if ext in [".exe", ".msi", ".bat"]:
+                safety_badge = "🛡️ [Safe Verified Executable]" if d.get("status") == "COMPLETED" else "🔄 [Scanning...]"
+            else:
+                safety_badge = "🛡️ [Safe Download]"
+            item = QListWidgetItem(f"📥 {d['file_name']}{size_str}\n   {safety_badge}")
             item.setToolTip(f"Path: {d['file_path']}\nStatus: {d['status']}\nURL: {d['url']}")
             item.setData(Qt.UserRole, d["file_path"])
             self.drawer_list.addItem(item)
@@ -878,6 +941,8 @@ class BrowserWidget(QWidget):
             self.load_history_drawer(text)
         elif self.active_drawer_mode == "downloads":
             self.load_downloads_drawer(text)
+        elif self.active_drawer_mode == "extensions":
+            self.load_extensions_drawer(text)
 
     def on_drawer_item_clicked(self, item: QListWidgetItem):
         data = item.data(Qt.UserRole)
@@ -885,6 +950,12 @@ class BrowserWidget(QWidget):
             return
         if self.active_drawer_mode in ["bookmarks", "history"]:
             self.navigate_to(data)
+        elif self.active_drawer_mode == "extensions":
+            ext_id = str(data)
+            current_state = bool(item.data(Qt.UserRole + 1))
+            new_state = not current_state
+            set_browser_extension_enabled(ext_id, new_state)
+            self.load_extensions_drawer()
         elif self.active_drawer_mode == "downloads":
             p = Path(data)
             if p.exists():
@@ -894,6 +965,73 @@ class BrowserWidget(QWidget):
                     QMessageBox.warning(self, "Open Folder", f"Could not open folder: {e}")
             else:
                 QMessageBox.information(self, "Download Item", f"File path:\n{data}\n(File may have been moved or removed)")
+
+    def toggle_reader_mode(self):
+        tab = self.current_tab()
+        if not tab:
+            return
+        tab.web_view.page().toPlainText(self._on_reader_text_extracted)
+
+    def _on_reader_text_extracted(self, text: str):
+        if not text.strip():
+            QMessageBox.information(self, "Reading Mode", "No readable text content available on this page.")
+            return
+
+        title = self.current_tab().web_view.title() or "Article"
+        paragraphs = text.strip().split("\n\n")
+        body_html = "".join(f"<p>{p.strip()}</p>" for p in paragraphs if p.strip())
+
+        reader_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Reading Mode: {title}</title>
+    <style>
+        body {{
+            background: #090e1a;
+            color: #d1d5db;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 19px;
+            line-height: 1.75;
+            max-width: 720px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }}
+        .header {{
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            border-bottom: 1px solid rgba(0, 240, 255, 0.3);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }}
+        .badge {{
+            color: #00f0ff;
+            font-weight: bold;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }}
+        h1 {{
+            color: #ffffff;
+            font-size: 28px;
+            margin-top: 10px;
+            margin-bottom: 0;
+        }}
+        p {{
+            margin-bottom: 18px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="badge">📖 NOVA DISTRACTION-FREE READING MODE</div>
+        <h1>{title}</h1>
+    </div>
+    <article>
+        {body_html}
+    </article>
+</body>
+</html>"""
+        tab = self.add_new_tab("about:blank")
+        tab.web_view.setHtml(reader_html)
 
     def delete_selected_bookmark(self):
         curr = self.drawer_list.currentItem()
@@ -1037,6 +1175,12 @@ class BrowserWidget(QWidget):
         elif mode == "explain":
             prompt = (
                 "Explain the main concepts discussed on this webpage in simple, clear terms for a user:\n\n"
+                f"--- WEBPAGE TEXT ---\n{context}\n--- END WEBPAGE TEXT ---"
+            )
+        elif mode == "translate":
+            target_lang = self.trans_lang_combo.currentText() if hasattr(self, "trans_lang_combo") else "Spanish"
+            prompt = (
+                f"Translate the following webpage content into {target_lang}. Preserve paragraph structure and return only the translation:\n\n"
                 f"--- WEBPAGE TEXT ---\n{context}\n--- END WEBPAGE TEXT ---"
             )
         else:

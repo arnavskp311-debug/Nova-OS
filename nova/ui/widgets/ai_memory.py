@@ -57,7 +57,7 @@ class AIMemoryWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         add_btn.clicked.connect(self.prompt_add_memory)
@@ -111,7 +111,7 @@ class AIMemoryWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         view_btn.clicked.connect(self.view_selected_memory)

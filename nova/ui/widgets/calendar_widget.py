@@ -68,7 +68,7 @@ class CalendarRemindersWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         add_event_btn.clicked.connect(self.prompt_add_event)
@@ -170,7 +170,7 @@ class CalendarRemindersWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.timer_btn.clicked.connect(self.toggle_focus_timer)

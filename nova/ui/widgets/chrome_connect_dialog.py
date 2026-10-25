@@ -102,7 +102,9 @@ class ChromeConnectDialog(QDialog):
 
         # Profile Selector
         prof_row = QHBoxLayout()
-        prof_row.addWidget(QLabel("Select Chrome Profile:"))
+        prof_lbl = QLabel("Select Chrome Profile:")
+        prof_lbl.setStyleSheet("color: #EAF4FF; font-weight: bold; font-size: 12px;")
+        prof_row.addWidget(prof_lbl)
         self.profile_combo = QComboBox()
         self.profile_combo.setMinimumWidth(260)
         prof_row.addWidget(self.profile_combo)
@@ -111,7 +113,7 @@ class ChromeConnectDialog(QDialog):
 
         # Permissions Group
         perm_group = QGroupBox("Granted Permissions")
-        perm_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        perm_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; } QGroupBox QCheckBox { color: #EAF4FF; font-size: 12px; }")
         perm_layout = QVBoxLayout(perm_group)
         perm_layout.setSpacing(8)
 
@@ -129,7 +131,7 @@ class ChromeConnectDialog(QDialog):
 
         # Actions & Reversible Data Management
         actions_group = QGroupBox("Import & Reversible Data Operations")
-        actions_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00ff88; border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        actions_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00ff88; border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; } QGroupBox QLabel { color: #EAF4FF; }")
         actions_layout = QVBoxLayout(actions_group)
         actions_layout.setSpacing(8)
 
@@ -242,7 +244,9 @@ class ChromeConnectDialog(QDialog):
         ext_summary.setStyleSheet("color: #94a3b8; font-size: 12px;")
         ext_layout.addWidget(ext_summary)
 
-        ext_layout.addWidget(QLabel("Host JSON Manifest Template (com.nova.os.browser.bridge.json):"))
+        manifest_lbl = QLabel("Host JSON Manifest Template (com.nova.os.browser.bridge.json):")
+        manifest_lbl.setStyleSheet("color: #EAF4FF; font-weight: bold;")
+        ext_layout.addWidget(manifest_lbl)
         manifest_edit = QTextEdit()
         manifest_edit.setReadOnly(True)
         manifest_edit.setFont(QFont("Consolas", 10))

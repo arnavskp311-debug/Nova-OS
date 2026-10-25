@@ -61,5 +61,14 @@
     "target": "settings",
     "x": 220,
     "y": 30
+  },
+  {
+    "id": "custom_eb5c7cba",
+    "title": "Control Center",
+    "icon": "\u2699",
+    "type": "app",
+    "target": "settings",
+    "x": 220,
+    "y": 125
   }
 ]

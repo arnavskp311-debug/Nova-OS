@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 
 from nova.config import APP_NAME, APP_VERSION, LOGS_DIR
+from nova.ui.theme import setup_nova_palette, get_stylesheet
 from nova.ui.main_window import MainWindow
 
 def setup_logging(debug: bool = False):
@@ -63,6 +64,8 @@ def main():
     QApplication.setOrganizationName("NovaQuantum")
 
     app = QApplication(sys.argv)
+    setup_nova_palette(app)
+    app.setStyleSheet(get_stylesheet())
 
     window = MainWindow(initial_url=args.url)
     if args.fullscreen:

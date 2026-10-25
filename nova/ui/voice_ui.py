@@ -341,7 +341,7 @@ class NovaVoiceHUD(QFrame):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.mic_btn.pressed.connect(self._on_mic_pressed)
@@ -444,7 +444,7 @@ class NovaVoiceHUD(QFrame):
         self.voice_engine.stop_speaking()
         self.orchestrator.interrupt()
         self.mic_btn.setText("● Listening...")
-        self.mic_btn.setStyleSheet("background: #00ff88; color: #000000; font-weight: bold; border-radius: 6px; padding: 0 14px;")
+        self.mic_btn.setStyleSheet("background: #00ff88; color: #050811; font-weight: bold; border-radius: 6px; padding: 0 14px;")
         self.user_bubble.setText("Listening...")
         self.voice_engine.voice_input.start_listening()
         self._on_state_changed("listening")

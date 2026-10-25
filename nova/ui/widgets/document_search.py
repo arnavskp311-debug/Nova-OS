@@ -59,7 +59,7 @@ class DocumentSearchWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         rescan_btn.clicked.connect(self.scan_local_documents)
@@ -172,7 +172,7 @@ class DocumentSearchWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         open_btn.clicked.connect(self.open_selected)

@@ -74,7 +74,7 @@ class WorkspaceWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         add_btn.clicked.connect(self.prompt_new_workspace)
@@ -192,7 +192,7 @@ class WorkspaceWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
             QPushButton:disabled {
                 background: #111a2e;

@@ -189,7 +189,28 @@ class BackupRestoreWidget(QWidget):
 
         # Left Checklist (Exact items from Panel 4)
         check_group = QGroupBox("Select Items to Include in Backup")
-        check_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; }")
+        check_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #00F0FF;
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 8px;
+                margin-top: 14px;
+                padding-top: 16px;
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-bottom: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                color: #00F0FF;
+            }
+            QGroupBox QCheckBox {
+                color: #EAF4FF;
+                font-size: 12px;
+            }
+        """)
         check_layout = QVBoxLayout(check_group)
         check_layout.setSpacing(8)
 
@@ -221,15 +242,39 @@ class BackupRestoreWidget(QWidget):
 
         # Right Destination & Name Box
         dest_group = QGroupBox("Destination & Naming")
-        dest_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; }")
+        dest_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #00F0FF;
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 8px;
+                margin-top: 14px;
+                padding-top: 16px;
+                padding-left: 10px;
+                padding-right: 10px;
+                padding-bottom: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                color: #00F0FF;
+            }
+            QGroupBox QLabel {
+                color: #EAF4FF;
+                font-size: 12px;
+                font-weight: 500;
+            }
+        """)
         dest_layout = QVBoxLayout(dest_group)
         dest_layout.setSpacing(10)
 
-        dest_layout.addWidget(QLabel("Select Destination Folder:"))
+        lbl_dest = QLabel("Select Destination Folder:")
+        lbl_dest.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        dest_layout.addWidget(lbl_dest)
         dest_pick_row = QHBoxLayout()
         self.dest_edit = QLineEdit(str(BACKUPS_DIR))
         self.dest_edit.setReadOnly(True)
-        self.dest_edit.setStyleSheet("background: #0d1527; color: #ffffff; padding: 6px;")
+        self.dest_edit.setStyleSheet("background: #0d1527; color: #EAF4FF; padding: 6px;")
         dest_pick_row.addWidget(self.dest_edit)
 
         browse_btn = QPushButton("Browse...")
@@ -237,10 +282,12 @@ class BackupRestoreWidget(QWidget):
         dest_pick_row.addWidget(browse_btn)
         dest_layout.addLayout(dest_pick_row)
 
-        dest_layout.addWidget(QLabel("Backup Archive Name:"))
+        lbl_name = QLabel("Backup Archive Name:")
+        lbl_name.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        dest_layout.addWidget(lbl_name)
         today_name = f"NOVA_Backup_{datetime.now().strftime('%Y-%m-%d')}"
         self.name_edit = QLineEdit(today_name)
-        self.name_edit.setStyleSheet("background: #0d1527; color: #00f0ff; font-weight: bold; padding: 6px;")
+        self.name_edit.setStyleSheet("background: #0d1527; color: #00F0FF; font-weight: bold; padding: 6px;")
         dest_layout.addWidget(self.name_edit)
 
         dest_layout.addStretch()
@@ -262,7 +309,7 @@ class BackupRestoreWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.start_backup_btn.clicked.connect(self.start_backup)
@@ -277,7 +324,9 @@ class BackupRestoreWidget(QWidget):
         r_layout = QVBoxLayout(restore_tab)
         r_layout.setSpacing(12)
 
-        r_layout.addWidget(QLabel("Available Local Backups in Destination Folder:"))
+        lbl_avail = QLabel("Available Local Backups in Destination Folder:")
+        lbl_avail.setStyleSheet("color: #EAF4FF; font-weight: 600; font-size: 12px;")
+        r_layout.addWidget(lbl_avail)
         self.backup_list = QListWidget()
         self.backup_list.setStyleSheet("""
             QListWidget {

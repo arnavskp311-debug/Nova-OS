@@ -19,7 +19,7 @@ from nova.config import APP_NAME, APP_VERSION, APP_SUBTITLE, DEFAULT_ACCENT, BRO
 from nova.system_monitor import SystemMonitor
 from nova.ollama_client import OllamaClient
 from nova.database import init_db, get_setting, set_setting, get_due_reminders, complete_reminder, purge_transient_cache
-from nova.ui.theme import get_stylesheet
+from nova.ui.theme import get_stylesheet, setup_nova_palette
 from nova.ui.taskbar import Taskbar
 from nova.ui.window_frame import WindowFrame
 from nova.ui.notifications import NotificationManager
@@ -538,7 +538,12 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Alt+C"), self, self.toggle_search_calc)
 
     def apply_theme(self, accent_name: str):
-        self.setStyleSheet(get_stylesheet(accent_name))
+        qss = get_stylesheet(accent_name)
+        app = QApplication.instance()
+        if app:
+            setup_nova_palette(app)
+            app.setStyleSheet(qss)
+        self.setStyleSheet(qss)
 
     def apply_performance_mode(self, mode: str):
         """Propagates performance mode to active widgets."""

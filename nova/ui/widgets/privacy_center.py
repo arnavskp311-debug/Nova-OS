@@ -100,17 +100,19 @@ class PrivacyCenterWidget(QWidget):
         self.card_layout.setSpacing(12)
 
         # Row 1: Browser History Control
+        row_style = "QFrame { background: #0d1b2a; border-radius: 6px; padding: 10px; } QCheckBox { color: #EAF4FF; } QLabel { color: #EAF4FF; }"
         r1_box = QFrame()
-        r1_box.setStyleSheet("background: #0d1b2a; border-radius: 6px; padding: 10px;")
+        r1_box.setStyleSheet(row_style)
         r1_layout = QHBoxLayout(r1_box)
         self.cb_history = QCheckBox("Track Local Browser History")
+        self.cb_history.setStyleSheet("color: #EAF4FF;")
         self.cb_history.setChecked(get_setting("privacy_track_history", "true") == "true")
         self.cb_history.toggled.connect(self.toggle_track_history)
         r1_layout.addWidget(self.cb_history)
         r1_layout.addStretch()
 
         self.hist_count_lbl = QLabel("0 items stored")
-        self.hist_count_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self.hist_count_lbl.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         r1_layout.addWidget(self.hist_count_lbl)
 
         clear_hist_btn = QPushButton("Clear History")
@@ -135,16 +137,17 @@ class PrivacyCenterWidget(QWidget):
 
         # Row 2: AI Local Memory Control
         r2_box = QFrame()
-        r2_box.setStyleSheet("background: #0d1b2a; border-radius: 6px; padding: 10px;")
+        r2_box.setStyleSheet(row_style)
         r2_layout = QHBoxLayout(r2_box)
         self.cb_memory = QCheckBox("Enable AI Memory & Persistent Preferences")
+        self.cb_memory.setStyleSheet("color: #EAF4FF;")
         self.cb_memory.setChecked(get_setting("privacy_enable_memory", "true") == "true")
         self.cb_memory.toggled.connect(self.toggle_enable_memory)
         r2_layout.addWidget(self.cb_memory)
         r2_layout.addStretch()
 
         self.mem_count_lbl = QLabel("0 approved memories")
-        self.mem_count_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self.mem_count_lbl.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         r2_layout.addWidget(self.mem_count_lbl)
 
         clear_mem_btn = QPushButton("Purge Memory")
@@ -169,9 +172,10 @@ class PrivacyCenterWidget(QWidget):
 
         # Row 3: Microphone & Audio Input Permission
         r3_box = QFrame()
-        r3_box.setStyleSheet("background: #0d1b2a; border-radius: 6px; padding: 10px;")
+        r3_box.setStyleSheet(row_style)
         r3_layout = QHBoxLayout(r3_box)
         self.cb_mic = QCheckBox("Microphone Access (NOVA Voice Assistant)")
+        self.cb_mic.setStyleSheet("color: #EAF4FF;")
         self.cb_mic.setChecked(get_setting("mic_permission_allowed", "true") == "true")
         self.cb_mic.toggled.connect(self.toggle_mic_permission)
         r3_layout.addWidget(self.cb_mic)
@@ -184,9 +188,11 @@ class PrivacyCenterWidget(QWidget):
 
         # Row 4: Data Retention Policy Dropdown
         r4_box = QFrame()
-        r4_box.setStyleSheet("background: #0d1b2a; border-radius: 6px; padding: 10px;")
+        r4_box.setStyleSheet(row_style)
         r4_layout = QHBoxLayout(r4_box)
-        r4_layout.addWidget(QLabel("Automatic Cache & Log Retention:"))
+        retention_lbl = QLabel("Automatic Cache & Log Retention:")
+        retention_lbl.setStyleSheet("color: #EAF4FF; font-weight: bold;")
+        r4_layout.addWidget(retention_lbl)
         self.retention_combo = QComboBox()
         self.retention_combo.addItems([
             "Auto-purge transient cache every 7 days",

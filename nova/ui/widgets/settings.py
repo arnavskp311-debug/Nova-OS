@@ -56,13 +56,66 @@ class SettingsWidget(QWidget):
         layout.addWidget(header)
 
         # AI Configuration Group
+        def _make_group_style(color: str, border_rgba: str) -> str:
+            return f"""
+                QGroupBox {{
+                    font-weight: bold;
+                    color: {color};
+                    border: 1px solid {border_rgba};
+                    border-radius: 8px;
+                    margin-top: 14px;
+                    padding-top: 16px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-bottom: 10px;
+                    background: transparent;
+                }}
+                QGroupBox::title {{
+                    subcontrol-origin: margin;
+                    subcontrol-position: top left;
+                    left: 10px;
+                    padding: 0 4px;
+                    color: {color};
+                    font-size: 12px;
+                    font-weight: bold;
+                }}
+                QGroupBox QLabel {{
+                    color: #EAF4FF;
+                    font-size: 12px;
+                    font-weight: 500;
+                }}
+                QGroupBox QCheckBox {{
+                    color: #EAF4FF;
+                    font-size: 12px;
+                }}
+                QGroupBox QCheckBox:disabled {{
+                    color: #718096;
+                }}
+                QGroupBox QComboBox {{
+                    background-color: #121829;
+                    color: #EAF4FF;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                }}
+                QGroupBox QLineEdit {{
+                    background-color: #0A0E19;
+                    color: #EAF4FF;
+                    border: 1px solid rgba(255, 255, 255, 0.15);
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                }}
+            """
+
         ai_group = QGroupBox("Local AI & Ollama Configuration")
-        ai_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        ai_group.setStyleSheet(_make_group_style("#00F0FF", "rgba(0, 240, 255, 0.25)"))
         ai_layout = QVBoxLayout(ai_group)
         ai_layout.setSpacing(10)
 
         host_row = QHBoxLayout()
-        host_row.addWidget(QLabel("Ollama Endpoint:"))
+        host_lbl = QLabel("Ollama Endpoint:")
+        host_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        host_row.addWidget(host_lbl)
         self.host_input = QLineEdit()
         self.host_input.setText(DEFAULT_OLLAMA_HOST)
         host_row.addWidget(self.host_input)
@@ -73,7 +126,9 @@ class SettingsWidget(QWidget):
         ai_layout.addLayout(host_row)
 
         model_row = QHBoxLayout()
-        model_row.addWidget(QLabel("Preferred Model:"))
+        model_lbl = QLabel("Preferred Model:")
+        model_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        model_row.addWidget(model_lbl)
         self.model_combo = QComboBox()
         model_row.addWidget(self.model_combo)
         model_row.addStretch()
@@ -83,12 +138,14 @@ class SettingsWidget(QWidget):
 
         # Voice Assistant & Kokoro-82M TTS Group
         voice_group = QGroupBox("NOVA Voice & Speech Synthesis (Kokoro-82M / Piper)")
-        voice_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        voice_group.setStyleSheet(_make_group_style("#00F0FF", "rgba(0, 240, 255, 0.25)"))
         voice_layout = QVBoxLayout(voice_group)
         voice_layout.setSpacing(10)
 
         v_engine_row = QHBoxLayout()
-        v_engine_row.addWidget(QLabel("Primary TTS Engine:"))
+        v_engine_lbl = QLabel("Primary TTS Engine:")
+        v_engine_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        v_engine_row.addWidget(v_engine_lbl)
         self.v_engine_combo = QComboBox()
         self.v_engine_combo.addItems([
             "Kokoro-82M (Neural High-Fidelity)",
@@ -100,7 +157,9 @@ class SettingsWidget(QWidget):
         voice_layout.addLayout(v_engine_row)
 
         v_profile_row = QHBoxLayout()
-        v_profile_row.addWidget(QLabel("Neural Voice Profile:"))
+        v_profile_lbl = QLabel("Neural Voice Profile:")
+        v_profile_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        v_profile_row.addWidget(v_profile_lbl)
         self.v_profile_combo = QComboBox()
         from nova.voice.kokoro_tts import RECOMMENDED_VOICES
         for v_id, v_label, _ in RECOMMENDED_VOICES:
@@ -110,20 +169,22 @@ class SettingsWidget(QWidget):
         voice_layout.addLayout(v_profile_row)
 
         voice_note = QLabel("Kokoro-82M (Apache 2.0) • Piper (MIT) • Offline Local Speech • Intel Core i3 Optimized")
-        voice_note.setObjectName("MutedLabel")
+        voice_note.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         voice_layout.addWidget(voice_note)
 
         layout.addWidget(voice_group)
 
         # Visual Theme Group (Matching Panel 7)
         theme_group = QGroupBox("NOVA Themes & Icon Packs")
-        theme_group.setStyleSheet("QGroupBox { font-weight: bold; color: #b026ff; border: 1px solid rgba(176, 38, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        theme_group.setStyleSheet(_make_group_style("#B026FF", "rgba(176, 38, 255, 0.25)"))
         theme_layout = QVBoxLayout(theme_group)
         theme_layout.setSpacing(10)
 
         # Theme Archetype Row
         t_row = QHBoxLayout()
-        t_row.addWidget(QLabel("Interface Theme:"))
+        t_lbl = QLabel("Interface Theme:")
+        t_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        t_row.addWidget(t_lbl)
         self.theme_preset_combo = QComboBox()
         self.theme_preset_combo.addItems([
             "Cyber Dark (Default)",
@@ -137,7 +198,9 @@ class SettingsWidget(QWidget):
 
         # Accent Neon Color Row
         accent_row = QHBoxLayout()
-        accent_row.addWidget(QLabel("Accent Neon Color:"))
+        accent_lbl = QLabel("Accent Neon Color:")
+        accent_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        accent_row.addWidget(accent_lbl)
         self.accent_combo = QComboBox()
         for name in ACCENT_COLORS.keys():
             self.accent_combo.addItem(name)
@@ -148,7 +211,9 @@ class SettingsWidget(QWidget):
 
         # Icon Pack Selector (Matching Panel 7: NOVA Default, Neon, Minimal)
         icon_row = QHBoxLayout()
-        icon_row.addWidget(QLabel("Desktop Icon Pack:"))
+        icon_lbl = QLabel("Desktop Icon Pack:")
+        icon_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        icon_row.addWidget(icon_lbl)
         self.icon_pack_combo = QComboBox()
         self.icon_pack_combo.addItems([
             "NOVA Cyber (Default)",
@@ -171,12 +236,14 @@ class SettingsWidget(QWidget):
 
         # Performance & Hardware Optimization Group
         perf_group = QGroupBox("Performance & Hardware Profile")
-        perf_group.setStyleSheet("QGroupBox { font-weight: bold; color: #ffaa00; border: 1px solid rgba(255, 170, 0, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        perf_group.setStyleSheet(_make_group_style("#FFAA00", "rgba(255, 170, 0, 0.25)"))
         perf_layout = QVBoxLayout(perf_group)
         perf_layout.setSpacing(8)
 
         perf_row = QHBoxLayout()
-        perf_row.addWidget(QLabel("Resource Profile:"))
+        perf_lbl = QLabel("Resource Profile:")
+        perf_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        perf_row.addWidget(perf_lbl)
         self.perf_combo = QComboBox()
         self.perf_combo.addItems([
             "Balanced (Recommended)",
@@ -188,13 +255,13 @@ class SettingsWidget(QWidget):
         perf_layout.addLayout(perf_row)
 
         perf_tip = QLabel("Balanced mode optimizes background polling and caches desktop rendering to eliminate lag.")
-        perf_tip.setObjectName("MutedLabel")
+        perf_tip.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         perf_layout.addWidget(perf_tip)
         layout.addWidget(perf_group)
 
         # Safety & Sandbox Policy Group
         safety_group = QGroupBox("Host Protection & Security Gate")
-        safety_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00ff88; border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        safety_group.setStyleSheet(_make_group_style("#00FF88", "rgba(0, 255, 136, 0.25)"))
         safety_layout = QVBoxLayout(safety_group)
         safety_layout.setSpacing(8)
 
@@ -215,7 +282,7 @@ class SettingsWidget(QWidget):
 
         # Data Backup & Recovery Group
         backup_group = QGroupBox("Data Backup, Recovery & Schema Vault")
-        backup_group.setStyleSheet("QGroupBox { font-weight: bold; color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; margin-top: 10px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; }")
+        backup_group.setStyleSheet(_make_group_style("#00F0FF", "rgba(0, 240, 255, 0.25)"))
         backup_layout = QVBoxLayout(backup_group)
         backup_layout.setSpacing(8)
 
@@ -245,7 +312,7 @@ class SettingsWidget(QWidget):
         info_layout.setContentsMargins(14, 10, 14, 10)
 
         info_title = QLabel(f"{APP_NAME} v{APP_VERSION} (Windows Trial Application)")
-        info_title.setStyleSheet("font-weight: bold; color: #ffffff;")
+        info_title.setStyleSheet("font-weight: bold; color: #FFFFFF;")
         info_layout.addWidget(info_title)
 
         info_desc = QLabel(
@@ -254,7 +321,7 @@ class SettingsWidget(QWidget):
             "All data is contained in the application folder and can be cleanly uninstalled at any time by deleting the project directory."
         )
         info_desc.setWordWrap(True)
-        info_desc.setStyleSheet("color: #798aa0; font-size: 11px;")
+        info_desc.setStyleSheet("color: #A9BCD4; font-size: 11px; line-height: 1.4;")
         info_layout.addWidget(info_desc)
 
         layout.addWidget(info_frame)

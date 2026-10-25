@@ -204,7 +204,7 @@ class Taskbar(QFrame):
             }
             QPushButton:hover {
                 background: #ffffff;
-                color: #000000;
+                color: #050811;
                 border-color: #ffffff;
             }
         """)
@@ -361,7 +361,7 @@ class Taskbar(QFrame):
             }
             QPushButton:hover {
                 background: #ffaa00;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.quick_settings_btn.clicked.connect(self.quick_settings_requested.emit)

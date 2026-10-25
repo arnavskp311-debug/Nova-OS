@@ -423,7 +423,7 @@ class BrowserWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.chrome_btn.clicked.connect(self.handoff_to_chrome)
@@ -476,7 +476,7 @@ class BrowserWidget(QWidget):
             }
             QPushButton:hover {
                 background: #b026ff;
-                color: #000000;
+                color: #ffffff;
             }
         """)
         self.toggle_ai_btn.setToolTip("Toggle AI Webpage Intelligence & Summary Sidebar")
@@ -497,7 +497,7 @@ class BrowserWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.voice_btn.clicked.connect(self.voice_requested.emit)

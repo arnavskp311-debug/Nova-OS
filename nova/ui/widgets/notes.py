@@ -121,7 +121,7 @@ class NotesWidget(QWidget):
 
         self.title_input = QLineEdit()
         self.title_input.setPlaceholderText("Note Title...")
-        self.title_input.setStyleSheet("font-size: 15px; font-weight: bold; padding: 6px;")
+        self.title_input.setStyleSheet("font-size: 15px; font-weight: bold; padding: 6px; color: #EAF4FF; background-color: #0A0E19; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px;")
         right_layout.addWidget(self.title_input)
 
         self.tags_input = QLineEdit()

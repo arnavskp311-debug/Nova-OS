@@ -58,7 +58,7 @@ class AutomationStudioWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         new_btn.clicked.connect(self.prompt_create_workflow)
@@ -173,7 +173,7 @@ class AutomationStudioWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.run_btn.clicked.connect(self.run_workflow)

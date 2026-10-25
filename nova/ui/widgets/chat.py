@@ -129,7 +129,7 @@ class MessageBubble(QFrame):
                     }
                     QPushButton:hover {
                         background-color: #00f0ff;
-                        color: #000000;
+                        color: #050811;
                     }
                 """)
                 cmd_btn.clicked.connect(lambda: self.parent_chat.trigger_command_execution(cmd_match))
@@ -201,14 +201,16 @@ class ChatWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.voice_btn.clicked.connect(self.toggle_voice)
         toolbar.addWidget(self.voice_btn)
 
         # Model Selector
-        toolbar.addWidget(QLabel("Model:"))
+        model_lbl = QLabel("Model:")
+        model_lbl.setStyleSheet("color: #EAF4FF; font-weight: bold; font-size: 11px;")
+        toolbar.addWidget(model_lbl)
         self.model_combo = QComboBox()
         self.model_combo.setMinimumWidth(160)
         toolbar.addWidget(self.model_combo)
@@ -295,7 +297,7 @@ class ChatWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         self.mic_btn.clicked.connect(self.on_mic_clicked)
@@ -526,7 +528,7 @@ class ChatWidget(QWidget):
                     }
                     QPushButton:hover {
                         background: #00f0ff;
-                        color: #000000;
+                        color: #050811;
                     }
                 """)
             else:

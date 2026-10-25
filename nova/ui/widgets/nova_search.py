@@ -90,7 +90,7 @@ class NovaSearchWidget(QWidget):
             }
             QPushButton:hover {
                 background: #00f0ff;
-                color: #000000;
+                color: #050811;
             }
         """)
         go_btn.clicked.connect(self.on_execute_search)

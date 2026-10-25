@@ -689,6 +689,15 @@ def test_ui_instantiation():
     assert "RAM (MB)" in headers, "RAM column must explicitly specify MB"
     assert "CPU %" in headers
 
+    # Verify Control Center Settings and Anti-Clipping Scroll Area
+    window.launch_app("settings")
+    assert "settings" in window.windows, "Settings window should be registered"
+    settings_frame, _ = window.windows["settings"]
+    settings_widget = settings_frame.content_widget
+    assert hasattr(settings_widget, "scroll_area"), "SettingsWidget must have scroll_area to prevent clipping"
+    assert hasattr(settings_widget, "save_btn"), "SettingsWidget must have save_btn"
+    assert hasattr(settings_widget, "view_audit_btn"), "SettingsWidget must have view_audit_btn"
+
     # Verify Dynamic Taskbar AI Status Indicators
     assert hasattr(window.taskbar, "ai_status_lbl")
     window.taskbar.set_ai_status(False, "", checking=True)

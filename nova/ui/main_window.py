@@ -623,7 +623,7 @@ class MainWindow(QMainWindow):
             widget.performance_mode_changed.connect(self.apply_performance_mode)
             title = "CONTROL CENTER"
             icon = "⚙"
-            default_size = (540, 560)
+            default_size = (640, 600)
         elif app_id == "workspace":
             widget = WorkspaceWidget(self.workspace_manager)
             widget.workspace_applied.connect(self._on_workspace_applied)
@@ -729,6 +729,7 @@ class MainWindow(QMainWindow):
     def on_window_focused(self, app_id: str):
         if app_id in self.windows:
             frame, _ = self.windows[app_id]
+            frame.raise_()
             self.windows[app_id] = (frame, True)
             self.taskbar.update_active_windows(self.windows)
 

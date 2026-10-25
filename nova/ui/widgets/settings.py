@@ -46,14 +46,53 @@ class SettingsWidget(QWidget):
         self.load_settings()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(16)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
 
-        # Header
+        # Header Bar
+        header_bar = QWidget()
+        header_layout = QHBoxLayout(header_bar)
+        header_layout.setContentsMargins(18, 14, 18, 10)
         header = QLabel("NOVA CONTROL CENTER // SETTINGS")
         header.setObjectName("HeaderTitle")
-        layout.addWidget(header)
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+        root_layout.addWidget(header_bar)
+
+        # Smooth Scroll Area for settings content (prevents clipping on small screens/windows)
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+            QScrollBar:vertical {
+                background: #080d1a;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #1c273e;
+                border-radius: 4px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #00f0ff;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+
+        container = QWidget()
+        container.setObjectName("SettingsScrollContainer")
+        container.setStyleSheet("QWidget#SettingsScrollContainer { background: transparent; }")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(18, 4, 18, 14)
+        layout.setSpacing(14)
 
         # AI Configuration Group
         def _make_group_style(color: str, border_rgba: str) -> str:
@@ -326,21 +365,33 @@ class SettingsWidget(QWidget):
 
         layout.addWidget(info_frame)
 
-        # Action Buttons
-        btn_row = QHBoxLayout()
-        btn_row.addStretch()
+        self.scroll_area.setWidget(container)
+        root_layout.addWidget(self.scroll_area, stretch=1)
+
+        # Fixed Footer Action Bar (Always visible, non-clipped)
+        footer_bar = QFrame()
+        footer_bar.setStyleSheet("""
+            QFrame {
+                background-color: #0b1122;
+                border-top: 1px solid rgba(0, 240, 255, 0.2);
+            }
+        """)
+        btn_row = QHBoxLayout(footer_bar)
+        btn_row.setContentsMargins(18, 10, 18, 10)
+        btn_row.setSpacing(12)
 
         self.view_audit_btn = QPushButton("View Security Audit Log")
         self.view_audit_btn.clicked.connect(self.on_view_audit)
         btn_row.addWidget(self.view_audit_btn)
+
+        btn_row.addStretch()
 
         self.save_btn = QPushButton("Apply Settings")
         self.save_btn.setObjectName("PrimaryButton")
         self.save_btn.clicked.connect(self.save_settings)
         btn_row.addWidget(self.save_btn)
 
-        layout.addLayout(btn_row)
-        layout.addStretch()
+        root_layout.addWidget(footer_bar)
 
     def load_settings(self):
         saved_host = get_setting("ollama_host", DEFAULT_OLLAMA_HOST)

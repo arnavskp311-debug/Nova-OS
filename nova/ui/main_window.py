@@ -47,6 +47,13 @@ from nova.ui.widgets.automation_studio import AutomationStudioWidget
 from nova.ui.widgets.calendar_widget import CalendarRemindersWidget
 from nova.ui.widgets.privacy_center import PrivacyCenterWidget
 from nova.ui.widgets.nova_search import NovaSearchWidget
+from nova.ui.widgets.agent_hub import AgentHubWidget
+from nova.ui.widgets.vault_widget import VaultWidget
+from nova.ui.widgets.quick_launcher import QuickLauncherWidget
+from nova.ui.widgets.cyber_wallpaper import CyberWallpaperWidget
+from nova.wake_word import WakeWordWorker
+from nova.sound_fx import play_sound
+from nova.memory_optimizer import get_memory_optimizer
 
 
 class AIStatusWorker(QThread):
@@ -240,11 +247,16 @@ class DesktopCanvas(QWidget):
         self.icon_layer = DesktopIconLayer(self)
         self.icon_layer.lower()
 
+        self.cyber_wallpaper = CyberWallpaperWidget(self)
+        self.cyber_wallpaper.lower()
         self.icon_manager = DesktopIconManager(self.icon_layer)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.icon_layer.setGeometry(0, 0, self.width(), self.height())
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.setGeometry(0, 0, self.width(), self.height())
+            self.cyber_wallpaper.lower()
         self.icon_layer.lower()
         if hasattr(self, "clock_widget") and self.clock_widget:
             x = max(100, self.width() - 280)
@@ -274,6 +286,10 @@ class DesktopCanvas(QWidget):
         self.sticky_widget.move(x, 400)
         self.sticky_widget.show()
         self.desktop_widgets = [self.clock_widget, self.meters_widget, self.sticky_widget]
+
+    def update_telemetry(self, cpu_pct: float):
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.set_telemetry(cpu_pct)
         self.icon_layer.lower()
 
     def contextMenuEvent(self, event):
@@ -409,6 +425,8 @@ class MainWindow(QMainWindow):
         self._stagger_offset = 0
 
         self.setup_ui()
+        self.quick_launcher = QuickLauncherWidget(self)
+        self.quick_launcher.action_triggered.connect(self._on_quick_launcher_action)
         self.setup_shortcuts()
         self.desktop_canvas.setup_icons(self._on_desktop_icon_activated)
         self.desktop_canvas.setup_widgets(self.system_monitor)
@@ -522,7 +540,8 @@ class MainWindow(QMainWindow):
 
         # Universal Search HUD (Spotlight)
         QShortcut(QKeySequence("Ctrl+Space"), self, self.toggle_search)
-        QShortcut(QKeySequence("Alt+Space"), self, self.toggle_search)
+        QShortcut(QKeySequence("Alt+Space"), self, self.toggle_quick_launcher)
+        QShortcut(QKeySequence("F3"), self, self.toggle_quick_launcher)
 
         # Clipboard History HUD
         QShortcut(QKeySequence("Ctrl+Shift+V"), self, self.toggle_clipboard_history)
@@ -690,6 +709,19 @@ class MainWindow(QMainWindow):
             title = "NOVA SEARCH PORTAL"
             icon = "❖"
             default_size = (720, 540)
+        elif app_id == "agent":
+            widget = AgentHubWidget(self.ollama_client)
+            title = "NOVA AUTONOMOUS AGENT"
+            icon = "🚀"
+            default_size = (760, 560)
+        elif app_id == "vault":
+            widget = VaultWidget(self.ollama_client)
+            title = "NOVA DOCUMENT VAULT"
+            icon = "📚"
+            default_size = (760, 540)
+        elif app_id == "launcher":
+            self.toggle_quick_launcher()
+            return
         else:
             return
 
@@ -748,6 +780,50 @@ class MainWindow(QMainWindow):
             frame.raise_()
             self.windows[app_id] = (frame, True)
             self.taskbar.update_active_windows(self.windows)
+
+    def toggle_quick_launcher(self):
+        """Toggles the floating Raycast-style command palette."""
+        if hasattr(self, "quick_launcher"):
+            if self.quick_launcher.isVisible():
+                self.quick_launcher.close()
+            else:
+                self.quick_launcher.show_centered()
+
+    def _on_quick_launcher_action(self, action_type: str, payload: dict):
+        """Handles actions dispatched from the Quick Launcher."""
+        if action_type == "open_browser":
+            self.launch_app("browser")
+        elif action_type == "ask_ai":
+            self.launch_app("chat")
+        elif action_type == "ask_ai_query":
+            self.launch_app("chat")
+            if "chat" in self.windows:
+                frame, _ = self.windows["chat"]
+                if hasattr(frame, "content_widget"):
+                    frame.content_widget.input_edit.setText(payload.get("value", ""))
+        elif action_type == "open_notes":
+            self.launch_app("notes")
+        elif action_type == "open_note_id":
+            self.launch_app("notes")
+        elif action_type == "open_terminal":
+            self.launch_app("terminal")
+        elif action_type == "run_terminal":
+            self.launch_app("terminal")
+            if "terminal" in self.windows:
+                frame, _ = self.windows["terminal"]
+                if hasattr(frame, "content_widget"):
+                    frame.content_widget.execute_input(payload.get("value", ""))
+        elif action_type == "open_settings":
+            self.launch_app("settings")
+        elif action_type in ["open_vault", "open_vault_query"]:
+            self.launch_app("vault")
+            if action_type == "open_vault_query" and "vault" in self.windows:
+                frame, _ = self.windows["vault"]
+                if hasattr(frame, "content_widget"):
+                    frame.content_widget.question_input.setText(payload.get("value", ""))
+                    frame.content_widget.on_ask_vault()
+        elif action_type == "notification":
+            self.notify(payload.get("title", "Action"), payload.get("msg", ""), "info")
 
     def toggle_search(self):
         """Toggles the Spotlight-style Universal Search HUD."""
@@ -907,6 +983,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, "voice_hud"):
             self.voice_hud.stop_current_action()
             self.voice_hud.hide()
+
+        if hasattr(self, "_wake_worker") and self._wake_worker:
+            self._wake_worker.cancel()
+            self._wake_worker.wait(500)
+        if hasattr(self, "quick_launcher") and self.quick_launcher:
+            self.quick_launcher.close()
 
         if hasattr(self, "voice_engine"):
             self.voice_engine.cleanup()

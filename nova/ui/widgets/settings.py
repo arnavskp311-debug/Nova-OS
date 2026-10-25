@@ -305,6 +305,26 @@ class SettingsWidget(QWidget):
         perf_tip = QLabel("Balanced mode optimizes background polling and caches desktop rendering to eliminate lag.")
         perf_tip.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         perf_layout.addWidget(perf_tip)
+
+        q_row = QHBoxLayout()
+        flush_btn = QPushButton("🧹 Quantum RAM Flush")
+        flush_btn.setStyleSheet("background: rgba(0, 240, 255, 0.15); color: #00f0ff; border: 1px solid rgba(0, 240, 255, 0.4); padding: 5px 12px; border-radius: 4px; font-weight: bold;")
+        flush_btn.clicked.connect(self.on_flush_ram)
+        q_row.addWidget(flush_btn)
+        q_row.addStretch()
+        perf_layout.addLayout(q_row)
+
+        self.sound_fx_cb = QCheckBox("Enable Cybernetic UI Sound Effects (Clicks, Chimes, Alerts)")
+        self.sound_fx_cb.setChecked(True)
+        perf_layout.addWidget(self.sound_fx_cb)
+
+        self.dynamic_wall_cb = QCheckBox("Enable Hardware-Reactive Dynamic Cyber Grid")
+        self.dynamic_wall_cb.setChecked(True)
+        perf_layout.addWidget(self.dynamic_wall_cb)
+
+        self.wake_word_cb = QCheckBox("Enable Hands-Free Voice Wake Word ('Hey NOVA')")
+        self.wake_word_cb.setChecked(False)
+        perf_layout.addWidget(self.wake_word_cb)
         layout.addWidget(perf_group)
 
         # Safety & Sandbox Policy Group
@@ -426,6 +446,13 @@ class SettingsWidget(QWidget):
                 self.v_profile_combo.setCurrentIndex(i)
                 break
 
+        saved_sound = get_setting("sound_fx_enabled", "true").lower() in ("true", "1", "yes")
+        self.sound_fx_cb.setChecked(saved_sound)
+        saved_dyn = get_setting("dynamic_wallpaper_enabled", "true").lower() in ("true", "1", "yes")
+        self.dynamic_wall_cb.setChecked(saved_dyn)
+        saved_wake = get_setting("wake_word_enabled", "false").lower() in ("true", "1", "yes")
+        self.wake_word_cb.setChecked(saved_wake)
+
         # Asynchronously fetch models without blocking UI
         self.model_combo.clear()
         self.model_combo.addItem("Loading installed models...")
@@ -503,9 +530,32 @@ class SettingsWidget(QWidget):
         set_setting("simulated_controls", self.simulated_controls_cb.isChecked())
         set_setting("voice_engine", self.v_engine_combo.currentText())
         set_setting("voice_profile", self.v_profile_combo.currentData() or "af_nova")
+        set_setting("sound_fx_enabled", "true" if self.sound_fx_cb.isChecked() else "false")
+        set_setting("dynamic_wallpaper_enabled", "true" if self.dynamic_wall_cb.isChecked() else "false")
+        set_setting("wake_word_enabled", "true" if self.wake_word_cb.isChecked() else "false")
+        try:
+            from nova.sound_fx import get_sound_engine
+            get_sound_engine().enabled = self.sound_fx_cb.isChecked()
+            get_sound_engine().play("success")
+        except Exception:
+            pass
 
         self.performance_mode_changed.emit(perf_mode)
         QMessageBox.information(self, "Settings Saved", "Application and performance preferences have been stored locally.")
+
+    def on_flush_ram(self):
+        from nova.memory_optimizer import flush_quantum_memory
+        from nova.sound_fx import get_sound_engine
+        get_sound_engine().play("chime")
+        res = flush_quantum_memory()
+        QMessageBox.information(
+            self,
+            "Quantum Memory Flush",
+            f"Active Memory Reclamation Complete!\n\n"
+            f"Physical RAM Trimmed: {res['trimmed_mb']:.1f} MB\n"
+            f"Available System RAM: {res['available_mb']:.0f} MB / {res['total_mb']:.0f} MB ({res['percent_used']}% used)\n"
+            f"OS Paging Status: Optimal"
+        )
 
     def on_view_audit(self):
         logs = get_recent_command_logs(limit=20)

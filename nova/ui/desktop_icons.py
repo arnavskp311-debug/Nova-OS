@@ -24,7 +24,9 @@ SHORTCUTS_FILE = DATA_DIR / "desktop_shortcuts.json"
 DEFAULT_SHORTCUTS = [
     {"id": "browser", "title": "NOVA Browser", "icon": "🌐", "type": "app", "target": "browser", "x": 30, "y": 30},
     {"id": "chat", "title": "NOVA AI", "icon": "🤖", "type": "app", "target": "chat", "x": 30, "y": 125},
-    {"id": "dashboard", "title": "Telemetry", "icon": "📊", "type": "app", "target": "dashboard", "x": 30, "y": 220},
+    {"id": "agent", "title": "AI Agent", "icon": "🚀", "type": "app", "target": "agent", "x": 30, "y": 220},
+    {"id": "vault", "title": "Doc Vault", "icon": "📚", "type": "app", "target": "vault", "x": 30, "y": 315},
+    {"id": "dashboard", "title": "Telemetry", "icon": "📊", "type": "app", "target": "dashboard", "x": 30, "y": 410},
     {"id": "notes", "title": "NovaPad", "icon": "📝", "type": "app", "target": "notes", "x": 30, "y": 315},
     {"id": "files", "title": "File Vault", "icon": "📁", "type": "app", "target": "files", "x": 30, "y": 410},
     {"id": "terminal", "title": "Terminal", "icon": "💻", "type": "app", "target": "terminal", "x": 30, "y": 505},

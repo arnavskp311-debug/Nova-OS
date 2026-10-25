@@ -8,11 +8,13 @@ import time
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QProgressBar, QFrame, QTableWidget,
-    QTableWidgetItem, QHeaderView, QScrollArea
+    QTableWidgetItem, QHeaderView, QScrollArea, QPushButton
 )
-from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtCore import Qt, QThread, Signal, Slot, QTimer
 from PySide6.QtGui import QColor
 from nova.system_monitor import SystemMonitor
+from nova.memory_optimizer import get_memory_optimizer
+from nova.sound_fx import play_sound
 
 class TelemetryWorker(QThread):
     metrics_ready = Signal(dict)
@@ -220,6 +222,24 @@ class DashboardWidget(QWidget):
         status_tag.setStyleSheet("color: #8fa0b5; font-size: 11px;")
         title_box.addWidget(status_tag)
         header.addLayout(title_box)
+
+        self.flush_ram_btn = QPushButton("🧹 Quantum RAM Flush")
+        self.flush_ram_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(0, 240, 255, 0.15);
+                color: #00F0FF;
+                border: 1px solid rgba(0, 240, 255, 0.4);
+                border-radius: 6px;
+                padding: 4px 12px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background: rgba(0, 240, 255, 0.3);
+            }
+        """)
+        self.flush_ram_btn.clicked.connect(self.on_flush_ram)
+        header.addWidget(self.flush_ram_btn, alignment=Qt.AlignRight | Qt.AlignVCenter)
 
         self.uptime_badge = QLabel("Uptime: --")
         self.uptime_badge.setStyleSheet("""
@@ -458,6 +478,15 @@ class DashboardWidget(QWidget):
             self.proc_table.setItem(row, 2, cpu_item)
             self.proc_table.setItem(row, 3, mem_mb_item)
             self.proc_table.setItem(row, 4, mem_pct_item)
-
-        # Restore vertical scroll position
         v_bar.setValue(cur_scroll)
+
+
+
+    def on_flush_ram(self):
+        res = get_memory_optimizer().flush_quantum_memory()
+        play_sound("success")
+        self.flush_ram_btn.setText(f"✓ {res['available_after_mb']} MB Avail")
+        QTimer.singleShot(2500, lambda: self.flush_ram_btn.setText("🧹 Quantum RAM Flush"))
+
+
+

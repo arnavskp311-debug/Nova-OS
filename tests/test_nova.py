@@ -871,6 +871,108 @@ def test_crash_prevention_and_font_handling():
 
     print("  -> Crash prevention, font validation & nonfatal fallbacks tests PASSED.")
 
+def test_cyber_v2_features():
+    print("[TEST] Testing Cyber V2 Upgrades (RAM Optimizer, Sound FX, Vault RAG, Agent Engine, Quick Launcher)...")
+    
+    # 1. Quantum RAM Optimizer
+    from nova.memory_optimizer import get_memory_optimizer, flush_quantum_memory
+    mem_opt = get_memory_optimizer()
+    status = mem_opt.get_memory_status()
+    assert "total_mb" in status and "available_mb" in status, "Memory status missing metrics"
+    assert status["total_mb"] > 0, "Invalid total physical RAM"
+    res = flush_quantum_memory()
+    assert res["status"] in ("OPTIMAL", "REDUCED"), f"RAM flush failed: {res}"
+    assert res["trimmed_mb"] >= 0, "Trimmed MB should be non-negative"
+
+    # 2. Sound FX Procedural Audio
+    from nova.sound_fx import get_sound_engine
+    sound_engine = get_sound_engine()
+    assert sound_engine is not None
+    for cue in ["click", "blip", "chime", "success", "alert"]:
+        wav_bytes = sound_engine.get_wav_bytes(cue)
+        assert len(wav_bytes) > 44, f"WAV synthesis failed for {cue}"
+        assert wav_bytes.startswith(b"RIFF"), f"Invalid RIFF header for {cue}"
+    # Verify non-blocking play
+    sound_engine.play("blip")
+
+    # 3. Document Vault RAG & Offline Retrieval
+    from nova.vault import get_vault
+    vault = get_vault()
+    sample_doc_content = "Antigravity NOVA OS is an offline cybernetic desktop environment running local LLMs and neural TTS."
+    test_file = BASE_DIR / "data" / "vault_test_sample.txt"
+    test_file.write_text(sample_doc_content, encoding="utf-8")
+    try:
+        ok, msg, doc_id = vault.ingest_document(test_file)
+        assert ok and doc_id > 0, f"Document ingestion failed: {msg}"
+        results = vault.search_vault("cybernetic desktop offline", top_k=3)
+        assert len(results) > 0, "Vault BM25 search failed to retrieve matches"
+        assert "NOVA" in results[0]["chunk_text"]
+        rag_prompt, _ = vault.build_rag_prompt("How does NOVA work offline?", results)
+        assert "VERIFIED DOCUMENT CONTEXT" in rag_prompt
+    finally:
+        if test_file.exists():
+            test_file.unlink()
+
+    # 4. Sandboxed Autonomous Agent Engine
+    from nova.agent_engine import AgentEngine, AgentWorker
+    from nova.ollama_client import OllamaClient
+    dummy_client = OllamaClient("http://127.0.0.1:59999")
+    agent = AgentEngine(dummy_client)
+    
+    # Test built-in sandboxed tools
+    diag = agent.execute_tool("system_diagnostic", {"cmd": "whoami"})
+    assert diag["success"] is True and len(diag["result"]) > 0
+    
+    calc = agent.execute_tool("calculate", {"expression": "(125 * 4) + 500"})
+    assert calc["success"] is True and "1000" in calc["result"]
+    
+    mem_res = agent.execute_tool("memory_flush", {})
+    assert mem_res["success"] is True
+
+    # Test AgentWorker cooperative cancellation
+    worker = AgentWorker(agent, "Clean cache and check memory")
+    assert hasattr(worker, "cancel")
+    worker.cancel()
+    assert worker._is_cancelled is True
+
+    # 5. Quick Launcher Palette Deterministic Processing
+    from nova.ui.widgets.quick_launcher import QuickLauncherWidget
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)
+    launcher = QuickLauncherWidget()
+    assert launcher is not None
+    # Test math evaluation
+    assert launcher._eval_math("25 * 4") == "100"
+    assert launcher._eval_math("sqrt(144) + 10") == "22.0"
+    assert launcher._eval_math("100 / 0") is None # Safe div by zero
+    launcher.hide()
+
+    # 6. Wake Word Worker Cooperative Cancellation
+    from nova.wake_word import WakeWordWorker
+    wake_worker = WakeWordWorker()
+    assert hasattr(wake_worker, "cancel")
+    wake_worker.cancel()
+    assert wake_worker._is_cancelled is True
+
+    # 7. Cyber Wallpaper Widget
+    from nova.ui.widgets.cyber_wallpaper import CyberWallpaperWidget
+    wallpaper = CyberWallpaperWidget()
+    assert wallpaper is not None
+    wallpaper.set_telemetry(cpu_load=45.0, ram_load=62.0)
+    wallpaper.hide()
+
+    # 8. Agent Hub & Vault Widgets
+    from nova.ui.widgets.agent_hub import AgentHubWidget
+    from nova.ui.widgets.vault_widget import VaultWidget
+    hub = AgentHubWidget(dummy_client)
+    assert hub is not None
+    v_widget = VaultWidget(dummy_client)
+    assert v_widget is not None
+    hub.hide()
+    v_widget.hide()
+
+    print("  -> Cyber V2 upgrades tests PASSED.")
+
 def run_all():
     print("=== STARTING NOVA OS VERIFICATION SUITE ===")
     test_database()
@@ -892,6 +994,7 @@ def run_all():
     test_nova_voice_system()
     test_crash_prevention_and_font_handling()
     test_ui_instantiation()
+    test_cyber_v2_features()
     print("=== ALL NOVA OS TESTS COMPLETED SUCCESSFULLY ===")
 
 if __name__ == "__main__":

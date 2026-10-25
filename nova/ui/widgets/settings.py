@@ -46,6 +46,7 @@ class SettingsModelWorker(QThread):
 class SettingsWidget(QWidget):
     theme_changed = Signal(str)
     performance_mode_changed = Signal(str)
+    effects_mode_changed = Signal(str)
 
     def __init__(self, ollama_client: OllamaClient, parent=None):
         super().__init__(parent)
@@ -302,6 +303,20 @@ class SettingsWidget(QWidget):
         perf_row.addStretch()
         perf_layout.addLayout(perf_row)
 
+        effects_row = QHBoxLayout()
+        effects_lbl = QLabel("Desktop Visual Effects Mode:")
+        effects_lbl.setStyleSheet("color: #EAF4FF; font-weight: 500;")
+        effects_row.addWidget(effects_lbl)
+        self.effects_mode_combo = QComboBox()
+        self.effects_mode_combo.addItems([
+            "Balanced (Subtle Grid & Soft Ambience) [Recommended]",
+            "Clean (No Particles, No Grid, Maximum Readability)",
+            "Cyber (Futuristic Grid & Dynamic Ambience)"
+        ])
+        effects_row.addWidget(self.effects_mode_combo)
+        effects_row.addStretch()
+        perf_layout.addLayout(effects_row)
+
         perf_tip = QLabel("Balanced mode optimizes background polling and caches desktop rendering to eliminate lag.")
         perf_tip.setStyleSheet("color: #A9BCD4; font-size: 11px;")
         perf_layout.addWidget(perf_tip)
@@ -434,6 +449,12 @@ class SettingsWidget(QWidget):
         if idx >= 0:
             self.perf_combo.setCurrentIndex(idx)
 
+        saved_eff = get_setting("desktop_effects_mode", "Balanced")
+        for i in range(self.effects_mode_combo.count()):
+            if saved_eff.lower() in self.effects_mode_combo.itemText(i).lower():
+                self.effects_mode_combo.setCurrentIndex(i)
+                break
+
         # Voice Settings
         saved_v_engine = get_setting("voice_engine", "Kokoro-82M (Neural High-Fidelity)")
         v_idx = self.v_engine_combo.findText(saved_v_engine)
@@ -515,8 +536,11 @@ class SettingsWidget(QWidget):
         self.accent_combo.setCurrentText(DEFAULT_ACCENT)
         self.theme_preset_combo.setCurrentText("Cyber Dark (Default)")
         self.icon_pack_combo.setCurrentText("NOVA Cyber (Default)")
+        self.effects_mode_combo.setCurrentIndex(0)
         set_setting("accent_color", DEFAULT_ACCENT)
         set_setting("icon_pack", "NOVA Cyber (Default)")
+        set_setting("desktop_effects_mode", "Balanced")
+        self.effects_mode_changed.emit("Balanced")
         self.theme_changed.emit(DEFAULT_ACCENT)
         QMessageBox.information(self, "Theme Reset", "Restored default NOVA Cyber Cyan theme and icon pack.")
 
@@ -539,6 +563,10 @@ class SettingsWidget(QWidget):
             get_sound_engine().play("success")
         except Exception:
             pass
+
+        eff_mode = self.effects_mode_combo.currentText().split()[0]
+        set_setting("desktop_effects_mode", eff_mode)
+        self.effects_mode_changed.emit(eff_mode)
 
         self.performance_mode_changed.emit(perf_mode)
         QMessageBox.information(self, "Settings Saved", "Application and performance preferences have been stored locally.")

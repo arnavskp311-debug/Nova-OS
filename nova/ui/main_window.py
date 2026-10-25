@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
     QApplication, QLabel, QMenu, QInputDialog, QFileDialog
 )
-from PySide6.QtCore import Qt, QPoint, QRect, QTimer, QThread, Signal
+from PySide6.QtCore import Qt, QPoint, QRect, QTimer, QThread, Signal, QEvent
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QRadialGradient, QBrush, QPixmap,
     QKeySequence, QShortcut
@@ -232,10 +232,10 @@ class DesktopIconLayer(QWidget):
 class DesktopCanvas(QWidget):
     """
     Interactive desktop workspace.
-    Maintains a strict 2-layer z-index architecture:
-    1. icon_layer: Child QWidget permanently lowered to the bottom of the z-stack.
-       Hosts all draggable desktop shortcuts.
-    2. WindowFrames: Direct children of DesktopCanvas permanently above icon_layer.
+    Maintains a strict visual stacking order:
+    1. CyberWallpaperWidget (bottom background effect)
+    2. DesktopIconLayer (icons and desktop widgets)
+    3. WindowFrames (application windows)
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -243,23 +243,46 @@ class DesktopCanvas(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setStyleSheet("background: transparent;")
 
-        # Dedicated Icon Layer widget at the bottom of the stacking order
-        self.icon_layer = DesktopIconLayer(self)
-        self.icon_layer.lower()
-
+        # Background effect layer (must be at the absolute bottom)
         self.cyber_wallpaper = CyberWallpaperWidget(self)
-        self.cyber_wallpaper.lower()
+
+        # Dedicated Icon Layer widget hosting shortcuts and desktop widgets
+        self.icon_layer = DesktopIconLayer(self)
         self.icon_manager = DesktopIconManager(self.icon_layer)
+
+        self._ensure_stacking_order()
+
+    def _ensure_stacking_order(self):
+        """Enforces that cyber_wallpaper is strictly underneath icon_layer and windows."""
+        if hasattr(self, "icon_layer"):
+            self.icon_layer.lower()
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.lower()
+            if hasattr(self, "icon_layer"):
+                self.cyber_wallpaper.stackUnder(self.icon_layer)
+
+    def set_effects_mode(self, mode: str):
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.set_effects_mode(mode)
+
+    def pause_wallpaper(self):
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.pause()
+
+    def resume_wallpaper(self):
+        if hasattr(self, "cyber_wallpaper"):
+            self.cyber_wallpaper.resume()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.icon_layer.setGeometry(0, 0, self.width(), self.height())
+        w, h = self.width(), self.height()
         if hasattr(self, "cyber_wallpaper"):
-            self.cyber_wallpaper.setGeometry(0, 0, self.width(), self.height())
-            self.cyber_wallpaper.lower()
-        self.icon_layer.lower()
+            self.cyber_wallpaper.setGeometry(0, 0, w, h)
+        if hasattr(self, "icon_layer"):
+            self.icon_layer.setGeometry(0, 0, w, h)
+        self._ensure_stacking_order()
         if hasattr(self, "clock_widget") and self.clock_widget:
-            x = max(100, self.width() - 280)
+            x = max(100, w - 280)
             self.clock_widget.move(x, 30)
             if hasattr(self, "meters_widget") and self.meters_widget:
                 self.meters_widget.move(x, 255)
@@ -268,7 +291,7 @@ class DesktopCanvas(QWidget):
 
     def setup_icons(self, on_activate_callback):
         self.icon_manager.render_icons(on_activate_callback)
-        self.icon_layer.lower()
+        self._ensure_stacking_order()
 
     def setup_widgets(self, system_monitor):
         """Instantiates Desktop Widgets (Clock, Calendar, Meters, Sticky Note) on icon layer."""
@@ -286,11 +309,12 @@ class DesktopCanvas(QWidget):
         self.sticky_widget.move(x, 400)
         self.sticky_widget.show()
         self.desktop_widgets = [self.clock_widget, self.meters_widget, self.sticky_widget]
+        self._ensure_stacking_order()
 
     def update_telemetry(self, cpu_pct: float):
         if hasattr(self, "cyber_wallpaper"):
             self.cyber_wallpaper.set_telemetry(cpu_pct)
-        self.icon_layer.lower()
+        self._ensure_stacking_order()
 
     def contextMenuEvent(self, event):
         """Shows the Cyber Desktop context menu when right-clicking the empty desktop."""
@@ -580,6 +604,21 @@ class MainWindow(QMainWindow):
             app.setStyleSheet(qss)
         self.setStyleSheet(qss)
 
+    def changeEvent(self, event):
+        if event.type() == QEvent.WindowStateChange:
+            if self.isMinimized():
+                if hasattr(self, "desktop_canvas"):
+                    self.desktop_canvas.pause_wallpaper()
+            else:
+                if hasattr(self, "desktop_canvas"):
+                    self.desktop_canvas.resume_wallpaper()
+        super().changeEvent(event)
+
+    def apply_desktop_effects_mode(self, mode: str):
+        """Propagates visual effects mode ('Clean', 'Balanced', 'Cyber') to desktop wallpaper."""
+        if hasattr(self, "desktop_canvas"):
+            self.desktop_canvas.set_effects_mode(mode)
+
     def apply_performance_mode(self, mode: str):
         """Propagates performance mode to active widgets."""
         if "dashboard" in self.windows:
@@ -656,6 +695,8 @@ class MainWindow(QMainWindow):
             widget = SettingsWidget(self.ollama_client)
             widget.theme_changed.connect(self.apply_theme)
             widget.performance_mode_changed.connect(self.apply_performance_mode)
+            if hasattr(widget, "effects_mode_changed"):
+                widget.effects_mode_changed.connect(self.apply_desktop_effects_mode)
             title = "CONTROL CENTER"
             icon = "⚙"
             default_size = (640, 600)

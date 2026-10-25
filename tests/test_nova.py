@@ -773,6 +773,8 @@ def test_ui_instantiation():
     assert hasattr(window, "workspace_manager"), "WorkspaceManager must be attached to MainWindow"
     assert hasattr(window.desktop_canvas, "desktop_widgets"), "desktop_widgets must exist on DesktopCanvas"
     assert len(window.desktop_canvas.desktop_widgets) >= 3, "At least 3 desktop widgets should be initialized"
+    canvas_kids = [c for c in window.desktop_canvas.children() if c.isWidgetType()]
+    assert canvas_kids.index(window.desktop_canvas.cyber_wallpaper) < canvas_kids.index(window.desktop_canvas.icon_layer), "cyber_wallpaper must be stacked below icon_layer"
 
     # Verify Launching all 8 New NOVA Applications
     new_apps = ["workspace", "backup", "docsearch", "memory", "automation", "calendar", "privacy", "novasearch"]
@@ -873,6 +875,7 @@ def test_crash_prevention_and_font_handling():
 
 def test_cyber_v2_features():
     print("[TEST] Testing Cyber V2 Upgrades (RAM Optimizer, Sound FX, Vault RAG, Agent Engine, Quick Launcher)...")
+    from PySide6.QtCore import Qt
     
     # 1. Quantum RAM Optimizer
     from nova.memory_optimizer import get_memory_optimizer, flush_quantum_memory
@@ -954,10 +957,30 @@ def test_cyber_v2_features():
     wake_worker.cancel()
     assert wake_worker._is_cancelled is True
 
-    # 7. Cyber Wallpaper Widget
+    # 7. Cyber Wallpaper Widget & Layering Isolation
     from nova.ui.widgets.cyber_wallpaper import CyberWallpaperWidget
     wallpaper = CyberWallpaperWidget()
     assert wallpaper is not None
+    assert wallpaper.testAttribute(Qt.WA_TransparentForMouseEvents) is True
+    # Test Clean Mode
+    wallpaper.set_effects_mode("clean")
+    assert wallpaper._enabled is False
+    assert len(wallpaper.particles) == 0
+    assert not wallpaper.timer.isActive()
+    # Test Balanced Mode (Default)
+    wallpaper.set_effects_mode("balanced")
+    assert wallpaper._enabled is True
+    assert len(wallpaper.particles) == 10
+    assert wallpaper.timer.interval() == 50
+    # Test Cyber Mode
+    wallpaper.set_effects_mode("cyber")
+    assert len(wallpaper.particles) == 16
+    assert wallpaper.timer.interval() == 40
+    # Test Pause / Resume
+    wallpaper.pause()
+    assert not wallpaper.timer.isActive()
+    wallpaper.resume()
+    assert wallpaper.timer.isActive()
     wallpaper.set_telemetry(cpu_load=45.0, ram_load=62.0)
     wallpaper.hide()
 

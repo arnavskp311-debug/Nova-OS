@@ -73,10 +73,15 @@ class DesktopIconWidget(QWidget):
         self.title_lbl.setAlignment(Qt.AlignCenter)
         self.title_lbl.setWordWrap(True)
         self.title_lbl.setStyleSheet("""
-            color: #ffffff;
-            font-size: 11px;
-            font-weight: 600;
-            background: transparent;
+            QLabel {
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 600;
+                background-color: rgba(9, 14, 26, 0.85);
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 4px;
+                padding: 2px 4px;
+            }
         """)
         layout.addWidget(self.title_lbl)
 
@@ -109,8 +114,8 @@ class DesktopIconWidget(QWidget):
             painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 8, 8)
         else:
             # Subtle resting glass plate
-            painter.setBrush(QColor(10, 16, 28, 90))
-            painter.setPen(QColor(255, 255, 255, 15))
+            painter.setBrush(QColor(9, 14, 26, 140))
+            painter.setPen(QColor(0, 240, 255, 45))
             painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 8, 8)
 
         painter.end()

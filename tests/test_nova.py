@@ -738,6 +738,49 @@ def test_ui_instantiation():
     window.close()
     print("  -> PySide6 UI Instantiation and shortcuts test PASSED.")
 
+def test_crash_prevention_and_font_handling():
+    print("[TEST] Testing Crash Prevention, Font Validation & Nonfatal Fallbacks...")
+    from nova.ui.theme import validate_font_size
+    from nova.voice.kokoro_tts import clean_speech_text
+    from nova.ollama_client import OllamaClient
+    from nova.ui.main_window import AIStatusWorker
+
+    # 1. Font size validation
+    assert validate_font_size(-1) == 11, "Negative font size should fall back to default"
+    assert validate_font_size(0) == 11, "Zero font size should fall back to default"
+    assert validate_font_size(-100) == 11
+    assert validate_font_size(14) == 14, "Valid font size should be preserved"
+    assert validate_font_size(999) == 72, "Excessive font size should be clamped to max_size"
+    assert validate_font_size("invalid") == 11, "Malformed font size string should fall back"
+    assert validate_font_size(None) == 11, "None font size should fall back"
+
+    # 2. Kokoro speech text sanitation (phonemizer word-count fix)
+    raw_text = "◈ NOVA OS ❖: Testing ```python\nprint('hello')\n``` with https://example.com and **markdown**---done."
+    cleaned = clean_speech_text(raw_text)
+    assert "◈" not in cleaned and "❖" not in cleaned, "Decorative glyphs must be stripped"
+    assert "https://" not in cleaned and "link" in cleaned, "URLs must be converted to 'link'"
+    assert "```" not in cleaned and "code snippet." in cleaned, "Code blocks must be converted"
+    assert "**" not in cleaned, "Markdown formatting must be stripped"
+    assert "---" not in cleaned, "Multiple dashes must be normalized"
+    assert clean_speech_text("") == ""
+    assert clean_speech_text("   ") == ""
+    assert clean_speech_text("• • •") == ""
+
+    # 3. Nonfatal Ollama offline handling
+    dummy_client = OllamaClient("http://127.0.0.1:59999")
+    assert dummy_client.check_connection() is False, "Offline endpoint must return False without crashing"
+    assert dummy_client.get_available_models() == [], "Offline endpoint must return [] without crashing"
+    stream_output = list(dummy_client.stream_chat([{"role": "user", "content": "hello"}]))
+    assert len(stream_output) > 0 and "offline" in stream_output[0].lower(), "Stream chat must gracefully yield notice"
+
+    # 4. Safe worker cancellation without terminate()
+    worker = AIStatusWorker(dummy_client)
+    assert hasattr(worker, "cancel"), "Worker must have cooperative cancel method"
+    worker.cancel()
+    assert worker._is_cancelled is True, "Worker cancel flag must be set"
+
+    print("  -> Crash prevention, font validation & nonfatal fallbacks tests PASSED.")
+
 def run_all():
     print("=== STARTING NOVA OS VERIFICATION SUITE ===")
     test_database()
@@ -757,6 +800,7 @@ def run_all():
     test_browser_widget()
     test_desktop_essentials_and_huds()
     test_nova_voice_system()
+    test_crash_prevention_and_font_handling()
     test_ui_instantiation()
     print("=== ALL NOVA OS TESTS COMPLETED SUCCESSFULLY ===")
 

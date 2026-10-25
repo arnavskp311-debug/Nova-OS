@@ -21,6 +21,35 @@ from nova.config import BASE_DIR
 
 logger = logging.getLogger("nova.voice.kokoro_tts")
 
+# Suppress benign phonemizer word-count mismatch & language switch warnings from flooding logs
+logging.getLogger("phonemizer").setLevel(logging.ERROR)
+
+def clean_speech_text(text: str) -> str:
+    """
+    Sanitizes raw AI/UI text into clean speech-ready phonemic text:
+    - Removes markdown syntax (bold, italics, code blocks, headers).
+    - Removes non-pronounceable decorative cyber glyphs, emojis, and brackets.
+    - Replaces URLs with 'web link'.
+    - Normalizes punctuation to prevent phonemizer word count mismatches.
+    """
+    if not text:
+        return ""
+    # Replace code blocks with descriptive text
+    text = re.sub(r'```[\s\S]*?```', ' code snippet. ', text)
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    # Replace URLs
+    text = re.sub(r'https?://\S+', ' link ', text)
+    # Remove markdown formatting & headers
+    text = re.sub(r'^[#*+\-]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'[*_~]', '', text)
+    # Remove decorative cyber glyphs, symbols, and bullets
+    text = re.sub(r'[◈❖●■□▲▼▶◀★☆⚡⚙📁💻🤖🌐📝📦🔍🎙🔊🔇✓✕✔❌•|/\\<>{}\[\]]', ' ', text)
+    # Normalize multiple dashes & periods to standard pauses
+    text = re.sub(r'[-—_]{2,}', ', ', text)
+    text = re.sub(r'\.{2,}', '.', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 DEFAULT_KOKORO_DIR = BASE_DIR / "data" / "models" / "kokoro"
 DEFAULT_CACHE_DIR = BASE_DIR / "data" / "audio_cache" / "kokoro"
 
@@ -172,8 +201,9 @@ class KokoroTTSEngine(QObject):
         """
         Splits long responses into speech chunks at natural punctuation pauses
         so audio playback can begin as soon as chunk 1 is ready.
+        Applies clean_speech_text to prevent phonemizer word-count mismatches.
         """
-        clean_text = text.strip()
+        clean_text = clean_speech_text(text)
         if not clean_text:
             return []
 
@@ -203,13 +233,17 @@ class KokoroTTSEngine(QObject):
     def synthesize_text_chunk(self, text: str, voice: Optional[str] = None, speed: Optional[float] = None) -> Tuple[Optional[np.ndarray], int]:
         """
         Synthesizes a single chunk of text into a numpy float32 audio array.
-        Uses audio cache if enabled.
+        Uses audio cache if enabled. Robust against empty or symbol-only inputs.
         """
+        cleaned_text = clean_speech_text(text)
+        if not cleaned_text or len(cleaned_text.strip()) < 2:
+            return None, self.sample_rate
+
         target_voice = voice or self.default_voice
         target_speed = speed or self.speed
 
         # Check audio disk cache
-        cache_key = self._get_cache_key(text, target_voice, target_speed)
+        cache_key = self._get_cache_key(cleaned_text, target_voice, target_speed)
         cache_file = self.cache_dir / f"{cache_key}.npy"
 
         if self.enable_cache and cache_file.exists():
@@ -229,22 +263,26 @@ class KokoroTTSEngine(QObject):
         if target_voice not in avail:
             target_voice = "af_nova" if "af_nova" in avail else (avail[0] if avail else "af_heart")
 
-        samples, sr = self.kokoro.create(
-            text,
-            voice=target_voice,
-            speed=target_speed,
-            lang="en-us"
-        )
-        self.sample_rate = sr
+        try:
+            samples, sr = self.kokoro.create(
+                cleaned_text,
+                voice=target_voice,
+                speed=target_speed,
+                lang="en-us"
+            )
+            self.sample_rate = sr
+        except Exception as e:
+            logger.warning(f"Kokoro synthesis failed for chunk '{cleaned_text[:30]}...': {e}")
+            return None, self.sample_rate
 
         # Cache generated samples
-        if self.enable_cache:
+        if self.enable_cache and samples is not None:
             try:
                 np.save(cache_file, samples)
             except Exception as e:
                 logger.debug(f"Audio cache write error: {e}")
 
-        return samples, sr
+        return samples, self.sample_rate
 
     def create_stream_worker(self, text: str, voice: Optional[str] = None, speed: Optional[float] = None) -> KokoroChunkWorker:
         """Creates a background worker thread that emits audio chunks as generated."""

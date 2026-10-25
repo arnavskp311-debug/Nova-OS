@@ -111,12 +111,19 @@ class AudioPlaybackManager(QObject):
         with self._lock:
             if self._is_playing:
                 self._is_playing = False
-                self.playback_stopped.emit()
-                self.amplitude_updated.emit(0.0)
+                self._safe_emit(self.playback_stopped)
+                self._safe_emit(self.amplitude_updated, 0.0)
+
+    def _safe_emit(self, signal, *args):
+        """Safely emits a Qt signal without crashing if parent QObject is destroyed during shutdown."""
+        try:
+            signal.emit(*args)
+        except (RuntimeError, AttributeError):
+            pass
 
     def _playback_loop(self):
         """Background thread worker that sequentially plays audio chunks."""
-        self.playback_started.emit()
+        self._safe_emit(self.playback_started)
         last_sr = None
 
         while not self._stop_event.is_set():
@@ -138,18 +145,26 @@ class AudioPlaybackManager(QObject):
                 if len(chunk) > 0:
                     rms = float(np.sqrt(np.mean(np.square(chunk))))
                     norm_amp = min(1.0, rms * 3.5)
-                    self.amplitude_updated.emit(norm_amp)
+                    self._safe_emit(self.amplitude_updated, norm_amp)
 
                 # Play chunk synchronously on the worker thread
                 sd.play(chunk, samplerate=sr, blocking=True)
-                
+
                 # Check for stop after chunk finishes
                 if self._stop_event.is_set():
                     break
 
             except Exception as e:
-                logger.error(f"Playback error: {e}")
-                self.error_occurred.emit(str(e))
+                logger.warning(f"Audio device playback error: {e}")
+                self._safe_emit(self.error_occurred, str(e))
+                # If audio device query failed (-1), flush queue and exit loop gracefully
+                while not self._queue.empty():
+                    try:
+                        self._queue.get_nowait()
+                        self._queue.task_done()
+                    except Exception:
+                        break
+                break
             finally:
                 self._queue.task_done()
 
@@ -157,6 +172,6 @@ class AudioPlaybackManager(QObject):
             was_playing = self._is_playing
             self._is_playing = False
 
-        self.amplitude_updated.emit(0.0)
+        self._safe_emit(self.amplitude_updated, 0.0)
         if not self._stop_event.is_set() and was_playing:
-            self.playback_finished.emit()
+            self._safe_emit(self.playback_finished)

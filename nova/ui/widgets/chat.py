@@ -61,13 +61,22 @@ class ModelDiscoveryWorker(QThread):
         super().__init__(parent)
         self.client = client
         self.force = force
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
+        if self._is_cancelled:
+            return
         is_online = self.client.check_connection(force_refresh=self.force)
+        if self._is_cancelled:
+            return
         models = []
         if is_online:
             models = self.client.get_available_models(force_refresh=self.force)
-        self.discovery_finished.emit(is_online, models)
+        if not self._is_cancelled:
+            self.discovery_finished.emit(is_online, models)
 
 class MessageBubble(QFrame):
     def __init__(self, role: str, text: str, model_name: str = "", parent_chat=None):
@@ -154,14 +163,16 @@ class MessageBubble(QFrame):
         self.content_lbl.setText(new_text)
 
 class ChatWidget(QWidget):
-    def __init__(self, ollama_client: OllamaClient, parent=None):
+    def __init__(self, ollama_client: OllamaClient, voice_engine: Optional[VoiceEngine] = None, parent=None):
         super().__init__(parent)
         self.ollama_client = ollama_client
         self.active_session_id = None
         self.worker: Optional[OllamaStreamWorker] = None
+        self.discovery_worker: Optional[ModelDiscoveryWorker] = None
         self._tracked_workers: List[QThread] = []
         self.current_bubble: Optional[MessageBubble] = None
-        self.voice = VoiceEngine(self)
+        self._owns_voice = (voice_engine is None)
+        self.voice = voice_engine if voice_engine is not None else VoiceEngine(self)
 
         self.setup_ui()
         self.load_models()
@@ -323,8 +334,16 @@ class ChatWidget(QWidget):
         """Asynchronously discovers local Ollama models on a background thread."""
         self.status_dot.setStyleSheet("color: #ffaa00; font-size: 14px;")
         self.status_text.setText("Connecting...")
+
+        if self.discovery_worker and self.discovery_worker.isRunning():
+            try:
+                self.discovery_worker.cancel()
+                self.discovery_worker.quit()
+                self.discovery_worker.wait(1500)
+            except Exception:
+                pass
         
-        worker = ModelDiscoveryWorker(self.ollama_client, force=force, parent=self)
+        worker = ModelDiscoveryWorker(self.ollama_client, force=force, parent=None)
         self.discovery_worker = worker
         self._tracked_workers.append(worker)
         worker.discovery_finished.connect(self.on_models_discovered)
@@ -559,8 +578,46 @@ class ChatWidget(QWidget):
     def cleanup(self):
         if self.voice:
             self.voice.stop_speaking()
+            if getattr(self, "_owns_voice", False):
+                self.voice.cleanup()
+
+        # Stop and join discovery worker
+        if hasattr(self, "discovery_worker") and self.discovery_worker:
+            try:
+                self.discovery_worker.cancel()
+                if self.discovery_worker.isRunning():
+                    self.discovery_worker.quit()
+                    self.discovery_worker.wait(1500)
+            except Exception:
+                pass
+            self.discovery_worker = None
+
+        # Stop and join active streaming worker
         if self.worker:
-            self.worker.cancel()
+            try:
+                self.worker.cancel()
+                if self.worker.isRunning():
+                    self.worker.quit()
+                    self.worker.wait(1500)
+            except Exception:
+                pass
+            self.worker = None
+
+        # Stop and join any remaining tracked workers
+        for w in list(self._tracked_workers):
+            try:
+                if hasattr(w, "cancel"):
+                    w.cancel()
+                if w.isRunning():
+                    w.quit()
+                    w.wait(1500)
+            except Exception:
+                pass
+        self._tracked_workers.clear()
+
+    def closeEvent(self, event):
+        self.cleanup()
+        super().closeEvent(event)
 
     def trigger_command_execution(self, command: str):
         """Invoked when user clicks on a command suggested by NOVA."""

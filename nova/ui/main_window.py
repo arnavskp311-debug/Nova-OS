@@ -53,24 +53,36 @@ class AIStatusWorker(QThread):
     """
     Background worker that checks Ollama AI daemon connectivity asynchronously
     to prevent blocking the Qt main UI thread.
+    Uses cooperative cancellation to avoid unsafe thread termination.
     """
     status_checked = Signal(bool, str)
 
     def __init__(self, ollama_client, parent=None):
         super().__init__(parent)
         self.ollama = ollama_client
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
         try:
+            if self._is_cancelled:
+                return
             ok = self.ollama.check_connection()
+            if self._is_cancelled:
+                return
             model = ""
             if ok:
                 models = self.ollama.get_available_models()
+                if self._is_cancelled:
+                    return
                 if models:
                     model = models[0]
             self.status_checked.emit(ok, model)
         except Exception:
-            self.status_checked.emit(False, "")
+            if not self._is_cancelled:
+                self.status_checked.emit(False, "")
 
 
 class CyberDesktopHost(QWidget):
@@ -598,7 +610,7 @@ class MainWindow(QMainWindow):
             icon = "📊"
             default_size = (620, 520)
         elif app_id == "chat":
-            widget = ChatWidget(self.ollama_client)
+            widget = ChatWidget(self.ollama_client, voice_engine=self.voice_engine)
             title = "NOVA AI TRANSMISSION"
             icon = "🤖"
             default_size = (560, 680)
@@ -865,12 +877,17 @@ class MainWindow(QMainWindow):
         self._ai_worker.start()
 
     def _on_ai_status_ready(self, is_online: bool, model_name: str):
-        """Updates the taskbar indicator when background AI check finishes."""
+        """Updates the taskbar indicator and adapts polling backoff."""
         if hasattr(self, "taskbar") and self.taskbar:
             self.taskbar.set_ai_status(is_online, model_name, checking=False)
+        # Adaptive backoff: poll less frequently when offline (60s) to save CPU/battery
+        if hasattr(self, "ai_status_timer") and self.ai_status_timer.isActive():
+            new_interval = 30000 if is_online else 60000
+            if self.ai_status_timer.interval() != new_interval:
+                self.ai_status_timer.setInterval(new_interval)
 
     def _cleanup_on_close(self):
-        """Stops background threads and releases resources on shutdown."""
+        """Stops background threads and releases resources on shutdown without unsafe terminate()."""
         if hasattr(self, "reminder_timer") and self.reminder_timer.isActive():
             self.reminder_timer.stop()
 
@@ -879,8 +896,9 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "_ai_worker") and self._ai_worker is not None:
             if self._ai_worker.isRunning():
-                self._ai_worker.terminate()
-                self._ai_worker.wait(500)
+                self._ai_worker.cancel()
+                self._ai_worker.quit()
+                self._ai_worker.wait(1500)
 
         if hasattr(self, "voice_hud"):
             self.voice_hud.stop_current_action()

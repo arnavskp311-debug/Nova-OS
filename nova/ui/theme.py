@@ -4,6 +4,7 @@ Supports dynamic accent colors, glowing borders, high-contrast typography,
 and centralized dark palette enforcement to eliminate unreadable dark text.
 """
 
+from typing import Any
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 from nova.config import ACCENT_COLORS, DEFAULT_ACCENT
@@ -23,11 +24,29 @@ COLOR_SELECTION_BG = "#0052CC"     # High-contrast deep cyber blue selection
 COLOR_SELECTION_FG = "#FFFFFF"     # High-contrast pure white text selection
 
 
+def validate_font_size(size: Any, default: int = 11, min_size: int = 6, max_size: int = 72) -> int:
+    """
+    Validates font size to strictly ensure positive, finite integer point sizes.
+    Rejects negative, zero, non-finite, and out-of-range values, returning a safe default.
+    Prevents Qt 'QFont::setPointSize: Point size <= 0' warnings.
+    """
+    try:
+        if size is None:
+            return default
+        val = int(float(size))
+        if val <= 0:
+            return default
+        return max(min_size, min(max_size, val))
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
 def setup_nova_palette(app: QApplication = None):
     """
     Configures a centralized dark QPalette on the application instance.
     Guarantees that any Qt widget, dialog, popup, or dynamically created component
     defaults to high-contrast readable text (#EAF4FF) rather than Windows system black.
+    Also ensures a validated positive point size on the application font.
     """
     palette = QPalette()
 
@@ -57,6 +76,11 @@ def setup_nova_palette(app: QApplication = None):
     target_app = app or QApplication.instance()
     if target_app:
         target_app.setPalette(palette)
+        # Enforce valid positive point size on application base font
+        app_font = target_app.font()
+        app_font.setFamily("Segoe UI")
+        app_font.setPointSize(validate_font_size(11))
+        target_app.setFont(app_font)
     return palette
 
 

@@ -161,9 +161,12 @@ class DashboardWidget(QWidget):
             # Automatically suspend polling when dashboard window is hidden/minimized
             self.worker.set_paused(True)
 
-    def closeEvent(self, event):
-        if hasattr(self, "worker"):
+    def cleanup(self):
+        if hasattr(self, "worker") and self.worker:
             self.worker.stop()
+
+    def closeEvent(self, event):
+        self.cleanup()
         super().closeEvent(event)
 
     def setup_ui(self):

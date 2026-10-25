@@ -193,8 +193,7 @@ class VoiceEngine(QObject):
         if self._active_tts_worker and self._active_tts_worker.isRunning():
             if hasattr(self._active_tts_worker, "cancel"):
                 self._active_tts_worker.cancel()
-            elif hasattr(self._active_tts_worker, "terminate"):
-                self._active_tts_worker.terminate()
+            self._active_tts_worker.quit()
             # Reference stays in self._tracked_workers until finished signal fires!
 
     def stop_speaking(self):

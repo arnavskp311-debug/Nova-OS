@@ -17,6 +17,13 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+:: Configure Ollama for CPU-only inference (prevents Vulkan 0xc0000142 crash on Intel Core i3)
+set OLLAMA_LLM_LIBRARY=cpu
+set OLLAMA_VULKAN=0
+set CUDA_VISIBLE_DEVICES=
+set ROCR_VISIBLE_DEVICES=
+set GGML_VK_VISIBLE_DEVICES=
+
 :: Ensure Ollama AI daemon is active
 tasklist /fi "imagename eq ollama.exe" 2>nul | findstr /i "ollama.exe" >nul
 if errorlevel 1 (

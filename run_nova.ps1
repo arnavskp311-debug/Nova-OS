@@ -22,6 +22,13 @@ try {
     exit 1
 }
 
+# Configure Ollama for CPU-only inference (prevents Vulkan 0xc0000142 crash on Intel Core i3)
+$env:OLLAMA_LLM_LIBRARY = "cpu"
+$env:OLLAMA_VULKAN = "0"
+$env:CUDA_VISIBLE_DEVICES = ""
+$env:ROCR_VISIBLE_DEVICES = ""
+$env:GGML_VK_VISIBLE_DEVICES = ""
+
 # Ensure Ollama AI daemon is active
 $ollamaProc = Get-Process -Name "*ollama*" -ErrorAction SilentlyContinue
 if (-not $ollamaProc) {

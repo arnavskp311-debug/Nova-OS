@@ -193,8 +193,17 @@ def ensure_ollama_running(host: str = DEFAULT_OLLAMA_HOST, timeout_wait: float =
             # CREATE_NO_WINDOW (0x08000000) | DETACHED_PROCESS (0x00000008) | CREATE_NEW_PROCESS_GROUP (0x00000200)
             creation_flags = 0x08000000 | 0x00000008 | 0x00000200
 
+        env = os.environ.copy()
+        # Force CPU compute on low-RAM Intel Core i3 systems to prevent Vulkan/CUDA DLL load failure (0xc0000142)
+        env["OLLAMA_LLM_LIBRARY"] = "cpu"
+        env["OLLAMA_VULKAN"] = "0"
+        env["CUDA_VISIBLE_DEVICES"] = ""
+        env["ROCR_VISIBLE_DEVICES"] = ""
+        env["GGML_VK_VISIBLE_DEVICES"] = ""
+
         subprocess.Popen(
             [exe, "serve"],
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

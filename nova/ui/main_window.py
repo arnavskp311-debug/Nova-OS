@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
     QApplication, QLabel, QMenu, QInputDialog, QFileDialog
 )
-from PySide6.QtCore import Qt, QPoint, QRect, QTimer
+from PySide6.QtCore import Qt, QPoint, QRect, QTimer, QThread, Signal
 from PySide6.QtGui import (
     QPainter, QColor, QPen, QRadialGradient, QBrush, QPixmap,
     QKeySequence, QShortcut
@@ -37,6 +37,30 @@ from nova.ui.widgets.terminal import TerminalWidget
 from nova.ui.widgets.file_viewer import FileViewerWidget
 from nova.ui.widgets.settings import SettingsWidget
 from nova.ui.widgets.browser import BrowserWidget
+
+
+class AIStatusWorker(QThread):
+    """
+    Background worker that checks Ollama AI daemon connectivity asynchronously
+    to prevent blocking the Qt main UI thread.
+    """
+    status_checked = Signal(bool, str)
+
+    def __init__(self, ollama_client, parent=None):
+        super().__init__(parent)
+        self.ollama = ollama_client
+
+    def run(self):
+        try:
+            ok = self.ollama.check_connection()
+            model = ""
+            if ok:
+                models = self.ollama.get_available_models()
+                if models:
+                    model = models[0]
+            self.status_checked.emit(ok, model)
+        except Exception:
+            self.status_checked.emit(False, "")
 
 
 class CyberDesktopHost(QWidget):
@@ -156,20 +180,54 @@ class CyberDesktopHost(QWidget):
         painter.drawPixmap(0, 0, self._cached_pixmap)
 
 
+class DesktopIconLayer(QWidget):
+    """
+    Dedicated background layer widget that hosts desktop shortcut icons.
+    Permanently kept at the bottom of the DesktopCanvas z-stack (below all window frames).
+    Forwards unhandled clicks and context menu events to the parent DesktopCanvas.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("DesktopIconLayer")
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setStyleSheet("background: transparent;")
+
+    def contextMenuEvent(self, event):
+        parent = self.parentWidget()
+        if parent:
+            parent.contextMenuEvent(event)
+        else:
+            super().contextMenuEvent(event)
+
+
 class DesktopCanvas(QWidget):
     """
-    Transparent interactive desktop workspace.
-    Hosts draggable desktop shortcuts, floating window frames, and desktop context menu.
+    Interactive desktop workspace.
+    Maintains a strict 2-layer z-index architecture:
+    1. icon_layer: Child QWidget permanently lowered to the bottom of the z-stack.
+       Hosts all draggable desktop shortcuts.
+    2. WindowFrames: Direct children of DesktopCanvas permanently above icon_layer.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("DesktopCanvas")
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setStyleSheet("background: transparent;")
-        self.icon_manager = DesktopIconManager(self)
+
+        # Dedicated Icon Layer widget at the bottom of the stacking order
+        self.icon_layer = DesktopIconLayer(self)
+        self.icon_layer.lower()
+
+        self.icon_manager = DesktopIconManager(self.icon_layer)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.icon_layer.setGeometry(0, 0, self.width(), self.height())
+        self.icon_layer.lower()
 
     def setup_icons(self, on_activate_callback):
         self.icon_manager.render_icons(on_activate_callback)
+        self.icon_layer.lower()
 
     def contextMenuEvent(self, event):
         """Shows the Cyber Desktop context menu when right-clicking the empty desktop."""
@@ -303,6 +361,13 @@ class MainWindow(QMainWindow):
         self.reminder_timer.timeout.connect(self._check_reminders)
         self.reminder_timer.start(10000)
 
+        # Asynchronous AI Status Poller (every 20s, initial check at 400ms)
+        self._ai_worker = None
+        self.ai_status_timer = QTimer(self)
+        self.ai_status_timer.timeout.connect(self._refresh_ai_status)
+        self.ai_status_timer.start(20000)
+        QTimer.singleShot(400, self._refresh_ai_status)
+
         # Welcome notification toast
         QTimer.singleShot(1200, lambda: self.notify(
             "NOVA OS Online",
@@ -312,12 +377,12 @@ class MainWindow(QMainWindow):
         ))
 
         if initial_url:
-            self.launch_app("browser", initial_pos=(60, 40), initial_size=(900, 680), url=initial_url)
-            self.launch_app("dashboard", initial_pos=(30, 30), initial_size=(560, 480))
+            self.launch_app("browser", initial_pos=(120, 30), initial_size=(900, 680), url=initial_url)
+            self.launch_app("dashboard", initial_pos=(140, 50), initial_size=(560, 480))
         else:
-            # Launch default desktop windows
-            self.launch_app("dashboard", initial_pos=(30, 30), initial_size=(620, 520))
-            self.launch_app("chat", initial_pos=(670, 30), initial_size=(560, 680))
+            # Launch default desktop windows (positioned to avoid covering the desktop icon strip on the left)
+            self.launch_app("dashboard", initial_pos=(120, 30), initial_size=(620, 530))
+            self.launch_app("chat", initial_pos=(770, 30), initial_size=(560, 680))
 
     def setup_ui(self):
         # Central Cyber Host Container (renders full-bleed wallpaper)
@@ -643,10 +708,33 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def _refresh_ai_status(self):
+        """Dispatches an asynchronous check of Ollama AI service status."""
+        if self._ai_worker is not None and self._ai_worker.isRunning():
+            return
+        if hasattr(self, "taskbar") and self.taskbar:
+            self.taskbar.set_ai_status(False, "", checking=True)
+        self._ai_worker = AIStatusWorker(self.ollama_client, self)
+        self._ai_worker.status_checked.connect(self._on_ai_status_ready)
+        self._ai_worker.start()
+
+    def _on_ai_status_ready(self, is_online: bool, model_name: str):
+        """Updates the taskbar indicator when background AI check finishes."""
+        if hasattr(self, "taskbar") and self.taskbar:
+            self.taskbar.set_ai_status(is_online, model_name, checking=False)
+
     def _cleanup_on_close(self):
         """Stops background threads and releases resources on shutdown."""
         if hasattr(self, "reminder_timer") and self.reminder_timer.isActive():
             self.reminder_timer.stop()
+
+        if hasattr(self, "ai_status_timer") and self.ai_status_timer.isActive():
+            self.ai_status_timer.stop()
+
+        if hasattr(self, "_ai_worker") and self._ai_worker is not None:
+            if self._ai_worker.isRunning():
+                self._ai_worker.terminate()
+                self._ai_worker.wait(500)
 
         if hasattr(self, "voice_hud"):
             self.voice_hud.stop_current_action()

@@ -106,21 +106,54 @@ def test_safety_engine():
     print("  -> Safety engine tests PASSED.")
 
 def test_system_monitor():
-    print("[TEST] Testing System Telemetry...")
+    print("[TEST] Testing System Telemetry & Accurate Hardware Metrics...")
     from nova.system_monitor import SystemMonitor
     mon = SystemMonitor()
     static_info = mon.get_static_info()
     assert "os_name" in static_info
     assert "architecture" in static_info
+    assert "cpu_cores_physical" in static_info, "Physical CPU cores must be reported"
+    assert "cpu_cores_logical" in static_info, "Logical CPU processors must be reported"
+    assert static_info["cpu_cores_logical"] >= static_info["cpu_cores_physical"]
 
     metrics = mon.get_realtime_metrics()
     assert "cpu_percent" in metrics
-    assert "memory" in metrics
-    assert "disk" in metrics
+    assert "cpu_freq_live" in metrics, "Live CPU frequency must be reported"
+    
+    # Verify Physical RAM vs Windows Commit Charge separation
+    assert "memory" in metrics, "Physical RAM metrics missing"
+    assert "commit" in metrics, "Windows Commit Charge / Swap metrics missing"
     assert metrics["memory"]["total_gb"] > 0
+    assert "available_gb" in metrics["memory"]
+    assert "used_gb" in metrics["memory"]
+    assert metrics["commit"]["total_gb"] > 0
+    assert "free_gb" in metrics["commit"]
 
+    # Verify single-drive disk metrics
+    assert "disk" in metrics
+    assert "drive" in metrics["disk"]
+    assert metrics["disk"]["total_gb"] > 0
+    assert metrics["disk"]["used_gb"] >= 0
+    assert metrics["disk"]["free_gb"] >= 0
+
+    # Verify network throughput formatting
+    assert "network" in metrics
+    assert "download_str" in metrics["network"]
+    assert "upload_str" in metrics["network"]
+
+    # Verify persistent process tracking (CPU % and RSS MB)
     procs = mon.get_top_processes(limit=5)
     assert isinstance(procs, list)
+    if procs:
+        p0 = procs[0]
+        assert "pid" in p0
+        assert "name" in p0
+        assert "cpu_percent" in p0
+        assert "memory_mb" in p0, "Process memory in MB must be tracked"
+        assert "memory_percent" in p0
+        assert isinstance(p0["memory_mb"], (int, float))
+        assert p0["memory_mb"] >= 0
+
     print("  -> System telemetry tests PASSED.")
 
 def test_ollama_client():
@@ -505,12 +538,36 @@ def test_ui_instantiation():
     assert hasattr(window, "notification_manager")
     assert hasattr(window, "voice_hud")
 
-    # Verify Wallpaper Host and Desktop Icons
+    # Verify Wallpaper Host, Desktop Canvas, and Icon Layer Isolation
     assert hasattr(window, "host_container")
     assert window.host_container._raw_wallpaper_pixmap is not None, "Wallpaper should be loaded"
+    assert hasattr(window.desktop_canvas, "icon_layer"), "Dedicated DesktopIconLayer must exist"
     assert hasattr(window.desktop_canvas, "icon_manager")
     assert len(window.desktop_canvas.icon_manager.shortcuts) >= 5, "Default desktop shortcuts should be present"
     window.desktop_canvas.icon_manager.arrange_grid()
+
+    # Verify System Telemetry Dashboard and Process Table Structure
+    assert "dashboard" in window.windows, "Dashboard window should be in active windows"
+    dash_frame, _ = window.windows["dashboard"]
+    assert dash_frame is not None
+    dash_widget = dash_frame.content_widget
+    assert hasattr(dash_widget, "scroll_area"), "Dashboard must be wrapped in a QScrollArea"
+    assert hasattr(dash_widget, "proc_table"), "Process monitoring table must exist"
+    table = dash_widget.proc_table
+    assert table.columnCount() == 5, f"Expected 5 columns in process table, got {table.columnCount()}"
+    headers = [table.horizontalHeaderItem(i).text() for i in range(5)]
+    assert "RAM (MB)" in headers, "RAM column must explicitly specify MB"
+    assert "CPU %" in headers
+
+    # Verify Dynamic Taskbar AI Status Indicators
+    assert hasattr(window.taskbar, "ai_status_lbl")
+    window.taskbar.set_ai_status(False, "", checking=True)
+    assert "CHECKING AI" in window.taskbar.ai_status_lbl.text()
+    window.taskbar.set_ai_status(True, "qwen2.5:0.5b", checking=False)
+    assert "AI READY" in window.taskbar.ai_status_lbl.text()
+    assert "qwen2.5:0.5b" in window.taskbar.ai_status_lbl.toolTip()
+    window.taskbar.set_ai_status(False, "", checking=False)
+    assert "AI OFFLINE" in window.taskbar.ai_status_lbl.text()
 
     # Test toggles
     window.toggle_search()

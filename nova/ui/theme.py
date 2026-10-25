@@ -21,16 +21,16 @@ def get_stylesheet(accent_name: str = DEFAULT_ACCENT) -> str:
         background-color: #080a10;
     }}
 
-    /* Futuristic Panels & Containers */
+    /* Futuristic Panels & Containers - 100% Opaque Cyber Dark */
     QFrame#GlassPanel, QWidget#GlassPanel {{
-        background-color: rgba(15, 20, 32, 0.85);
-        border: 1px solid rgba(0, 240, 255, 0.18);
+        background-color: #090e1a;
+        border: 1px solid rgba(0, 240, 255, 0.35);
         border-radius: 10px;
     }}
 
     QFrame#AccentCard {{
-        background-color: #0e1322;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: #0d1527;
+        border: 1px solid rgba(0, 240, 255, 0.22);
         border-radius: 8px;
     }}
 

@@ -301,26 +301,28 @@ class Taskbar(QFrame):
         layout.addWidget(self.tasks_container, stretch=1)
 
         # Right Side System Tray
-        # AI Status Tag (Pill)
-        self.ai_tag = QLabel("● AI READY")
+        # AI Status Tag (Dynamic Pill)
+        self.ai_tag = QLabel("○ CHECKING AI")
+        self.ai_status_lbl = self.ai_tag
         self.ai_tag.setStyleSheet("""
             QLabel {
-                color: #00ff88;
+                color: #ffaa00;
                 font-weight: bold;
                 font-size: 10px;
                 padding: 4px 10px;
-                background: #081a18;
+                background: #1c1808;
                 border-radius: 12px;
-                border: 1px solid rgba(0, 255, 136, 0.4);
+                border: 1px solid rgba(255, 170, 0, 0.4);
             }
         """)
+        self.ai_tag.setToolTip("Verifying Ollama local model service status...")
         layout.addWidget(self.ai_tag)
 
         # Quick Settings button
         self.quick_settings_btn = QPushButton("⚡")
         self.quick_settings_btn.setFixedSize(34, 34)
         self.quick_settings_btn.setCursor(Qt.PointingHandCursor)
-        self.quick_settings_btn.setToolTip("Quick Settings, Power Profiles & Cache (⚡)")
+        self.quick_settings_btn.setToolTip("Quick Settings, Power Profiles & Cache Purge (Ctrl+Shift+S)")
         self.quick_settings_btn.setStyleSheet("""
             QPushButton {
                 background: #101728;
@@ -338,11 +340,13 @@ class Taskbar(QFrame):
         self.quick_settings_btn.clicked.connect(self.quick_settings_requested.emit)
         layout.addWidget(self.quick_settings_btn)
 
-        # Digital Clock
+        # Digital Clock (Responsive, non-clipped)
         self.clock_lbl = QLabel()
+        self.clock_lbl.setMinimumWidth(88)
+        self.clock_lbl.setAlignment(Qt.AlignCenter)
         self.clock_lbl.setCursor(Qt.PointingHandCursor)
-        self.clock_lbl.setToolTip("Click to view Quick Settings & Storage Diagnostics")
-        self.clock_lbl.setStyleSheet("color: #e2e8f0; font-family: 'Segoe UI', monospace; font-size: 11px; font-weight: 600; padding: 0 8px;")
+        self.clock_lbl.setToolTip("System Clock & Calendar • Click for Quick Settings")
+        self.clock_lbl.setStyleSheet("color: #e2e8f0; font-family: 'Segoe UI', monospace; font-size: 11px; font-weight: 600; padding: 0 4px;")
         self.clock_lbl.mousePressEvent = lambda e: self.quick_settings_requested.emit()
         layout.addWidget(self.clock_lbl)
 
@@ -350,7 +354,7 @@ class Taskbar(QFrame):
         exit_icon_btn = QPushButton("⏻")
         exit_icon_btn.setFixedSize(34, 34)
         exit_icon_btn.setCursor(Qt.PointingHandCursor)
-        exit_icon_btn.setToolTip("Safely Close NOVA OS Trial")
+        exit_icon_btn.setToolTip("Safely Close NOVA OS Trial (Ctrl+Q)")
         exit_icon_btn.setObjectName("DangerButton")
         exit_icon_btn.setStyleSheet("""
             QPushButton#DangerButton {
@@ -367,6 +371,52 @@ class Taskbar(QFrame):
         """)
         exit_icon_btn.clicked.connect(self.exit_requested)
         layout.addWidget(exit_icon_btn)
+
+    def set_ai_status(self, is_online: bool, model_name: str = "", checking: bool = False):
+        """Dynamically updates the AI Status pill based on verified Ollama connectivity."""
+        if checking:
+            self.ai_tag.setText("○ CHECKING AI")
+            self.ai_tag.setStyleSheet("""
+                QLabel {
+                    color: #ffaa00;
+                    font-weight: bold;
+                    font-size: 10px;
+                    padding: 4px 10px;
+                    background: #1c1808;
+                    border-radius: 12px;
+                    border: 1px solid rgba(255, 170, 0, 0.4);
+                }
+            """)
+            self.ai_tag.setToolTip("Verifying Ollama local model service status...")
+        elif is_online:
+            label = f"● AI READY ({model_name})" if model_name else "● AI READY"
+            self.ai_tag.setText(label)
+            self.ai_tag.setStyleSheet("""
+                QLabel {
+                    color: #00ff88;
+                    font-weight: bold;
+                    font-size: 10px;
+                    padding: 4px 10px;
+                    background: #081a18;
+                    border-radius: 12px;
+                    border: 1px solid rgba(0, 255, 136, 0.4);
+                }
+            """)
+            self.ai_tag.setToolTip(f"Ollama local AI is online and responsive (Model: {model_name or 'qwen2.5:0.5b'})")
+        else:
+            self.ai_tag.setText("○ AI OFFLINE")
+            self.ai_tag.setStyleSheet("""
+                QLabel {
+                    color: #ff4466;
+                    font-weight: bold;
+                    font-size: 10px;
+                    padding: 4px 10px;
+                    background: #240c12;
+                    border-radius: 12px;
+                    border: 1px solid rgba(255, 68, 102, 0.4);
+                }
+            """)
+            self.ai_tag.setToolTip("Ollama service unreachable at 127.0.0.1:11434. Local LLM offline.")
 
     def toggle_launcher(self):
         if self.launcher.isVisible():

@@ -27,7 +27,14 @@ class WindowFrame(QFrame):
         self.setup_ui()
 
     def setup_ui(self):
-        self.setObjectName("GlassPanel")
+        self.setObjectName("WindowFrame")
+        self.setStyleSheet("""
+            QFrame#WindowFrame {
+                background-color: #090e1a;
+                border: 1px solid rgba(0, 240, 255, 0.35);
+                border-radius: 10px;
+            }
+        """)
         self.setMinimumSize(420, 320)
         
         main_layout = QVBoxLayout(self)

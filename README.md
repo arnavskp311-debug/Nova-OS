@@ -1,6 +1,6 @@
 # NOVA OS — Personalized Premium Space Desktop & Live Linux Workstation
 
-[![Build Standalone Live Linux ISO](https://github.com/arnavskp311-debug/Nova-OS/actions/workflows/build-iso.yml/badge.svg)](https://github.com/arnavskp311-debug/Nova-OS/actions/workflows/build-iso.yml)
+[![Build Standalone Live Linux ISO](https://github.com/arnavskp311-debug/NovaOS/actions/workflows/build-iso.yml/badge.svg)](https://github.com/arnavskp311-debug/NovaOS/actions/workflows/build-iso.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Platform: Windows | Linux Live ISO](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20Live%20ISO-darkcyan.svg)](#)
@@ -74,8 +74,8 @@ NOVA OS is engineered from the ground up for low-spec dual-core laptops and lega
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/arnavskp311-debug/Nova-OS.git
-cd Nova-OS
+git clone https://github.com/arnavskp311-debug/NovaOS.git
+cd NovaOS
 
 # Install dependencies
 pip install -r requirements.txt

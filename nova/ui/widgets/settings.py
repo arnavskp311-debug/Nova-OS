@@ -16,9 +16,12 @@ from nova.config import (
     DEFAULT_ACCENT, APP_NAME, APP_VERSION, BACKUPS_DIR
 )
 from nova.database import (
-    get_setting, set_setting, get_recent_command_logs,
-    create_database_backup, restore_database_backup, check_database_integrity
+    get_setting, set_setting, get_recent_command_logs, clear_command_logs,
+    create_database_backup, restore_database_backup, check_database_integrity,
+    get_database_backup_list
 )
+from nova.security_fortress import EmergencyPanicWipe
+from nova.download_security import DownloadValidator
 from nova.ollama_client import OllamaClient
 
 class SettingsModelWorker(QThread):
@@ -342,26 +345,65 @@ class SettingsWidget(QWidget):
         perf_layout.addWidget(self.wake_word_cb)
         layout.addWidget(perf_group)
 
-        # Safety & Sandbox Policy Group
-        safety_group = QGroupBox("Host Protection & Security Gate")
-        safety_group.setStyleSheet(_make_group_style("#00FF88", "rgba(0, 255, 136, 0.25)"))
-        safety_layout = QVBoxLayout(safety_group)
-        safety_layout.setSpacing(8)
+        # Privacy Center & Security Fortress Group
+        privacy_group = QGroupBox("Privacy Center & Security Fortress")
+        privacy_group.setStyleSheet(_make_group_style("#00FF88", "rgba(0, 255, 136, 0.25)"))
+        privacy_layout = QVBoxLayout(privacy_group)
+        privacy_layout.setSpacing(8)
 
-        self.require_approval_cb = QCheckBox("Require explicit user approval dialog for any modifying command")
+        self.privacy_telemetry_cb = QCheckBox("Disable Host Telemetry Reporting (Strict Zero Tracking)")
+        self.privacy_telemetry_cb.setChecked(True)
+        privacy_layout.addWidget(self.privacy_telemetry_cb)
+
+        self.privacy_isolation_cb = QCheckBox("Strict Browser Isolation (Zero Token / Cookie Access for AI Assistant)")
+        self.privacy_isolation_cb.setChecked(True)
+        self.privacy_isolation_cb.setEnabled(False) # Non-negotiable security invariant
+        privacy_layout.addWidget(self.privacy_isolation_cb)
+
+        self.privacy_quarantine_cb = QCheckBox("Automatic Executable & Script Quarantine (.exe, .bat, .ps1)")
+        self.privacy_quarantine_cb.setChecked(True)
+        privacy_layout.addWidget(self.privacy_quarantine_cb)
+
+        self.require_approval_cb = QCheckBox("Require explicit user clearance dialog for modifying system commands")
         self.require_approval_cb.setChecked(True)
-        safety_layout.addWidget(self.require_approval_cb)
+        privacy_layout.addWidget(self.require_approval_cb)
 
         self.simulated_controls_cb = QCheckBox("Simulate risky operating system features (poweroff, reboot, upgrade) safely")
         self.simulated_controls_cb.setChecked(True)
-        safety_layout.addWidget(self.simulated_controls_cb)
+        privacy_layout.addWidget(self.simulated_controls_cb)
 
         self.block_destructive_cb = QCheckBox("Strictly block host system alterations (Registry, Boot, Windows files)")
         self.block_destructive_cb.setChecked(True)
         self.block_destructive_cb.setEnabled(False) # Always forced on for safety
-        safety_layout.addWidget(self.block_destructive_cb)
+        privacy_layout.addWidget(self.block_destructive_cb)
 
-        layout.addWidget(safety_group)
+        # Action Buttons Row
+        sec_btns_row = QHBoxLayout()
+        sec_btns_row.setSpacing(8)
+
+        self.view_audit_btn = QPushButton("📋 View Audit Log")
+        self.view_audit_btn.setToolTip("View recent command and security events logged to SQLite")
+        self.view_audit_btn.clicked.connect(self.on_view_audit)
+        sec_btns_row.addWidget(self.view_audit_btn)
+
+        self.clear_audit_btn = QPushButton("🧹 Clear Audit Log")
+        self.clear_audit_btn.setToolTip("Purge all recorded execution logs from SQLite audit vault")
+        self.clear_audit_btn.clicked.connect(self.on_clear_audit)
+        sec_btns_row.addWidget(self.clear_audit_btn)
+
+        self.quarantine_vault_btn = QPushButton("🛡️ Quarantine Vault")
+        self.quarantine_vault_btn.setToolTip("Inspect and manage quarantined executable downloads")
+        self.quarantine_vault_btn.clicked.connect(self.on_open_quarantine)
+        sec_btns_row.addWidget(self.quarantine_vault_btn)
+
+        self.panic_wipe_btn = QPushButton("🚨 Panic Lockdown")
+        self.panic_wipe_btn.setObjectName("DangerButton")
+        self.panic_wipe_btn.setToolTip("Emergency trigger: Flushes memory buffers and purges transient cache")
+        self.panic_wipe_btn.clicked.connect(self.on_panic_wipe)
+        sec_btns_row.addWidget(self.panic_wipe_btn)
+
+        privacy_layout.addLayout(sec_btns_row)
+        layout.addWidget(privacy_group)
 
         # Data Backup & Recovery Group
         backup_group = QGroupBox("Data Backup, Recovery & Schema Vault")
@@ -424,9 +466,9 @@ class SettingsWidget(QWidget):
         btn_row.setContentsMargins(18, 10, 18, 10)
         btn_row.setSpacing(12)
 
-        self.view_audit_btn = QPushButton("View Security Audit Log")
-        self.view_audit_btn.clicked.connect(self.on_view_audit)
-        btn_row.addWidget(self.view_audit_btn)
+        status_lbl = QLabel("🛡️ Host Protection Active • Trial Sandbox Isolated")
+        status_lbl.setStyleSheet("color: #8da2bb; font-size: 11px; font-weight: 500;")
+        btn_row.addWidget(status_lbl)
 
         btn_row.addStretch()
 
@@ -448,6 +490,9 @@ class SettingsWidget(QWidget):
         idx = self.perf_combo.findText(saved_perf)
         if idx >= 0:
             self.perf_combo.setCurrentIndex(idx)
+
+        self.privacy_telemetry_cb.setChecked(get_setting("disable_telemetry", True))
+        self.privacy_quarantine_cb.setChecked(get_setting("auto_quarantine_enabled", True))
 
         saved_eff = get_setting("desktop_effects_mode", "Balanced")
         for i in range(self.effects_mode_combo.count()):
@@ -552,6 +597,8 @@ class SettingsWidget(QWidget):
         set_setting("performance_mode", perf_mode)
         set_setting("require_approval", self.require_approval_cb.isChecked())
         set_setting("simulated_controls", self.simulated_controls_cb.isChecked())
+        set_setting("disable_telemetry", self.privacy_telemetry_cb.isChecked())
+        set_setting("auto_quarantine_enabled", self.privacy_quarantine_cb.isChecked())
         set_setting("voice_engine", self.v_engine_combo.currentText())
         set_setting("voice_profile", self.v_profile_combo.currentData() or "af_nova")
         set_setting("sound_fx_enabled", "true" if self.sound_fx_cb.isChecked() else "false")
@@ -586,18 +633,79 @@ class SettingsWidget(QWidget):
         )
 
     def on_view_audit(self):
-        logs = get_recent_command_logs(limit=20)
+        logs = get_recent_command_logs(limit=30)
         if not logs:
-            QMessageBox.information(self, "Security Audit Log", "No commands have been logged yet.")
+            QMessageBox.information(self, "Security Audit Log", "No command or security events have been logged yet.")
             return
 
-        lines = ["=== RECENT COMMAND SECURITY AUDIT LOGS ==="]
+        lines = ["=== RECENT COMMAND & SECURITY AUDIT LOGS ==="]
         for l in logs:
             approved = "YES" if l["approved"] else "NO"
-            lines.append(f"[{l['executed_at']}] [{l['risk_level']}] Approved:{approved} Status:{l['status']}\nCmd: {l['command']}")
+            lines.append(f"[{l['executed_at']}] [{l['risk_level']}] Approved:{approved} Status:{l['status']}\nEvent: {l['command']}")
 
         msg = "\n\n".join(lines)
-        QMessageBox.information(self, "Security Audit Logs", msg[:1500])
+        QMessageBox.information(self, "Security Audit Logs", msg[:1800])
+
+    def on_clear_audit(self):
+        reply = QMessageBox.question(
+            self,
+            "Clear Security Audit Log",
+            "Are you sure you want to purge all recorded command audit logs?\n\nThis action cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            deleted = clear_command_logs()
+            QMessageBox.information(self, "Audit Log Purged", f"Purged {deleted} security audit log entries.")
+
+    def on_open_quarantine(self):
+        manifest = DownloadValidator.get_manifest()
+        if not manifest:
+            QMessageBox.information(
+                self,
+                "Quarantine Vault",
+                "Quarantine Vault is currently clean. No quarantined payloads detected."
+            )
+            return
+
+        lines = [f"=== NOVA QUARANTINE VAULT ({len(manifest)} Isolated Items) ===\n"]
+        for idx, item in enumerate(manifest, 1):
+            size_kb = round(item.get("size_bytes", 0) / 1024, 1)
+            lines.append(
+                f"{idx}. {item['original_name']} ({size_kb} KB)\n"
+                f"   SHA-256: {item['sha256'][:24]}...\n"
+                f"   Reason: {item['reason']}\n"
+                f"   Quarantined: {item['quarantined_at']}\n"
+            )
+
+        msg = "\n".join(lines)
+        QMessageBox.information(self, "Quarantine Vault", msg[:2000])
+
+    def on_panic_wipe(self):
+        reply = QMessageBox.warning(
+            self,
+            "Confirm Panic Lockdown",
+            "This emergency trigger will:\n"
+            "• Flush all working memory buffers\n"
+            "• Purge all transient browser & audio cache\n"
+            "• Reset volatile state\n\n"
+            "Do you authorize emergency lockdown?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            res = EmergencyPanicWipe.execute_panic()
+            try:
+                from nova.sound_fx import get_sound_engine
+                get_sound_engine().play("chime")
+            except Exception:
+                pass
+            QMessageBox.information(
+                self,
+                "Panic Lockdown Engaged",
+                f"Emergency Lockdown Executed!\n\n"
+                f"• Memory Flushed: {'YES' if res.get('memory_flushed') else 'NO'}\n"
+                f"• Transient Cache Purged: {'YES' if res.get('cache_purged') else 'NO'}\n"
+                f"• Timestamp: {res.get('timestamp')}"
+            )
 
     def on_create_backup(self):
         ok, msg, path = create_database_backup()

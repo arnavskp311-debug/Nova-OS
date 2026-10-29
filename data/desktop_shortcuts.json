@@ -1,12 +1,48 @@
 [
   {
+    "id": "this_pc",
+    "title": "This PC",
+    "icon": "\ud83d\udcbb",
+    "type": "app",
+    "target": "files",
+    "x": 30,
+    "y": 30
+  },
+  {
+    "id": "recycle_bin",
+    "title": "Recycle Bin",
+    "icon": "\ud83d\uddd1\ufe0f",
+    "type": "app",
+    "target": "recycle_bin",
+    "x": 30,
+    "y": 125
+  },
+  {
+    "id": "nova_workspace_sc",
+    "title": "NOVA Workspace",
+    "icon": "\ud83d\udcc1",
+    "type": "app",
+    "target": "files",
+    "x": 30,
+    "y": 220
+  },
+  {
+    "id": "web_browser_sc",
+    "title": "Web Browser",
+    "icon": "\ud83c\udf10",
+    "type": "app",
+    "target": "browser",
+    "x": 125,
+    "y": 30
+  },
+  {
     "id": "browser",
     "title": "NOVA Browser",
     "icon": "\ud83c\udf10",
     "type": "app",
     "target": "browser",
-    "x": 30,
-    "y": 30
+    "x": 125,
+    "y": 125
   },
   {
     "id": "chat",
@@ -14,8 +50,8 @@
     "icon": "\ud83e\udd16",
     "type": "app",
     "target": "chat",
-    "x": 30,
-    "y": 125
+    "x": 125,
+    "y": 220
   },
   {
     "id": "dashboard",
@@ -23,8 +59,8 @@
     "icon": "\ud83d\udcca",
     "type": "app",
     "target": "dashboard",
-    "x": 30,
-    "y": 220
+    "x": 220,
+    "y": 30
   },
   {
     "id": "notes",
@@ -32,8 +68,8 @@
     "icon": "\ud83d\udcdd",
     "type": "app",
     "target": "notes",
-    "x": 125,
-    "y": 30
+    "x": 220,
+    "y": 125
   },
   {
     "id": "files",
@@ -41,8 +77,8 @@
     "icon": "\ud83d\udcc1",
     "type": "app",
     "target": "files",
-    "x": 125,
-    "y": 125
+    "x": 220,
+    "y": 220
   },
   {
     "id": "terminal",
@@ -50,8 +86,8 @@
     "icon": "\ud83d\udcbb",
     "type": "app",
     "target": "terminal",
-    "x": 125,
-    "y": 220
+    "x": 315,
+    "y": 30
   },
   {
     "id": "settings",
@@ -59,8 +95,8 @@
     "icon": "\u2699",
     "type": "app",
     "target": "settings",
-    "x": 220,
-    "y": 30
+    "x": 315,
+    "y": 125
   },
   {
     "id": "custom_eb5c7cba",
@@ -68,7 +104,142 @@
     "icon": "\u2699",
     "type": "app",
     "target": "settings",
-    "x": 220,
+    "x": 315,
+    "y": 220
+  },
+  {
+    "id": "custom_6a6e1572",
+    "title": "chrome_proxy.exe",
+    "icon": "\ud83d\udcc4",
+    "type": "file",
+    "target": "C:\\Program Files\\Google\\Chrome\\Application\\chrome_proxy.exe",
+    "x": 410,
+    "y": 30
+  },
+  {
+    "id": "custom_9d3ae191",
+    "title": "Sandbox File Vault",
+    "icon": "\ud83d\udcc1",
+    "type": "app",
+    "target": "files",
+    "x": 410,
     "y": 125
+  },
+  {
+    "id": "pajama",
+    "title": "Pajama Studio",
+    "icon": "\u26a1",
+    "type": "app",
+    "target": "pajama",
+    "x": 410,
+    "y": 220
+  },
+  {
+    "id": "custom_8134a651",
+    "title": "hhp.py",
+    "icon": "\ud83d\udcc4",
+    "type": "file",
+    "target": "C:\\Users\\DAV-3\\hhp.py",
+    "x": 505,
+    "y": 30
+  },
+  {
+    "id": "winapps",
+    "title": "Windows Apps",
+    "icon": "\ud83e\ude9f",
+    "type": "app",
+    "target": "winapps",
+    "x": 505,
+    "y": 125
+  },
+  {
+    "id": "dojo",
+    "title": "Pajama Dojo",
+    "icon": "\ud83e\udd4b",
+    "type": "app",
+    "target": "dojo",
+    "x": 505,
+    "y": 220
+  },
+  {
+    "id": "canvas",
+    "title": "2D Canvas Games",
+    "icon": "\ud83c\udfae",
+    "type": "app",
+    "target": "canvas",
+    "x": 600,
+    "y": 30
+  },
+  {
+    "id": "events",
+    "title": "Event Diagnostics",
+    "icon": "\ud83d\udcdc",
+    "type": "app",
+    "target": "events",
+    "x": 600,
+    "y": 125
+  },
+  {
+    "id": "shell_tools",
+    "title": "Windows Shell",
+    "icon": "\ud83e\ude9f",
+    "type": "app",
+    "target": "shell_tools",
+    "x": 600,
+    "y": 220
+  },
+  {
+    "id": "media_hub",
+    "title": "CyberAmp Studio",
+    "icon": "\ud83c\udfac",
+    "type": "app",
+    "target": "media_hub",
+    "x": 695,
+    "y": 30
+  },
+  {
+    "id": "arcade_hub",
+    "title": "Arcade Hub",
+    "icon": "\ud83d\udc7e",
+    "type": "app",
+    "target": "arcade_hub",
+    "x": 695,
+    "y": 125
+  },
+  {
+    "id": "network_tools",
+    "title": "Network & Mobile",
+    "icon": "\ud83c\udf10",
+    "type": "app",
+    "target": "network_tools",
+    "x": 695,
+    "y": 220
+  },
+  {
+    "id": "security_fortress",
+    "title": "Security Fortress",
+    "icon": "\ud83d\udee1\ufe0f",
+    "type": "app",
+    "target": "security_fortress",
+    "x": 790,
+    "y": 30
+  },
+  {
+    "id": "productivity_hub",
+    "title": "Kanban & Focus",
+    "icon": "\ud83d\udccb",
+    "type": "app",
+    "target": "productivity_hub",
+    "x": 790,
+    "y": 125
+  },
+  {
+    "id": "os_matrix",
+    "title": "Kernel Matrix",
+    "icon": "\ud83e\uddec",
+    "type": "app",
+    "target": "os_matrix",
+    "x": 790,
+    "y": 220
   }
 ]

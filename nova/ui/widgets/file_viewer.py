@@ -8,11 +8,15 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTreeView, QFileSystemModel,
     QTextEdit, QSplitter, QFrame, QMessageBox,
-    QFileDialog
+    QFileDialog, QLineEdit
 )
 from PySide6.QtCore import Qt, QDir
 from PySide6.QtGui import QFont
-from nova.config import BASE_DIR, DATA_DIR, LOGS_DIR, BACKUPS_DIR
+from nova.config import (
+    BASE_DIR, DATA_DIR, LOGS_DIR, BACKUPS_DIR,
+    WORKSPACE_DIR, WORKSPACE_REPORTS_DIR, WORKSPACE_NOTES_DIR,
+    WORKSPACE_DOWNLOADS_DIR
+)
 
 class FileViewerWidget(QWidget):
     def __init__(self, parent=None):
@@ -47,6 +51,66 @@ class FileViewerWidget(QWidget):
         header.addWidget(self.export_btn)
 
         layout.addLayout(header)
+
+        # Quick Workspace Folder Toolbar
+        folder_bar = QHBoxLayout()
+        folder_bar.setSpacing(6)
+        ws_folders = [
+            ("🏠 Workspace", WORKSPACE_DIR),
+            ("📊 Reports", WORKSPACE_REPORTS_DIR),
+            ("📝 Notes", WORKSPACE_NOTES_DIR),
+            ("📥 Downloads", WORKSPACE_DOWNLOADS_DIR),
+            ("📜 Logs", LOGS_DIR),
+            ("📦 Backups", BACKUPS_DIR),
+        ]
+        btn_style = """
+            QPushButton {
+                background: #0d1527;
+                border: 1px solid rgba(0, 210, 230, 0.25);
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 11px;
+                color: #e2e8f0;
+            }
+            QPushButton:hover {
+                background: #142036;
+                border-color: #00d2e6;
+                color: #ffffff;
+            }
+        """
+        for label, path in ws_folders:
+            btn = QPushButton(label)
+            btn.setStyleSheet(btn_style)
+            btn.clicked.connect(lambda checked=False, p=path: self.navigate_to_folder(p))
+            folder_bar.addWidget(btn)
+        folder_bar.addStretch()
+        layout.addLayout(folder_bar)
+
+        # Breadcrumbs bar & file filter
+        nav_bar = QHBoxLayout()
+        self.breadcrumb_lbl = QLabel(f"Path: {WORKSPACE_DIR}")
+        self.breadcrumb_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-family: 'Segoe UI', monospace;")
+        nav_bar.addWidget(self.breadcrumb_lbl, stretch=1)
+
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("Filter files by name...")
+        self.filter_input.setFixedWidth(200)
+        self.filter_input.setStyleSheet("""
+            QLineEdit {
+                background: #090e1a;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: #f0f6fc;
+                font-size: 11px;
+            }
+            QLineEdit:focus {
+                border-color: #00d2e6;
+            }
+        """)
+        self.filter_input.textChanged.connect(self.on_filter_changed)
+        nav_bar.addWidget(self.filter_input)
+        layout.addLayout(nav_bar)
 
         # Splitter (Left: Tree, Right: Preview)
         splitter = QSplitter(Qt.Horizontal)
@@ -115,14 +179,33 @@ class FileViewerWidget(QWidget):
         except Exception as e:
             self.preview_edit.setPlainText(f"[Unable to read file: {e}]")
 
+    def navigate_to_folder(self, p: Path):
+        """Navigates file tree view directly to requested folder."""
+        p.mkdir(parents=True, exist_ok=True)
+        idx = self.model.index(str(p))
+        if idx.isValid():
+            self.tree.setRootIndex(idx)
+            self.breadcrumb_lbl.setText(f"Path: {p}")
+            self.tree.expand(idx)
+
+    def on_filter_changed(self, text: str):
+        query = text.strip()
+        if query:
+            self.model.setNameFilters([f"*{query}*"])
+            self.model.setNameFilterDisables(False)
+        else:
+            self.model.setNameFilters([])
+            self.model.setNameFilterDisables(True)
+
     def on_file_clicked(self, index):
         file_path_str = self.model.filePath(index)
         p = Path(file_path_str)
+        self.breadcrumb_lbl.setText(f"Path: {p}")
         if p.is_file():
             self.load_file_content(p)
         else:
             self.file_info_lbl.setText(f"Folder: {p.name}")
-            self.preview_edit.setPlainText("")
+            self.preview_edit.setPlainText("[Directory selected. Click an individual file above to inspect its contents.]")
 
     def on_open_external_file(self):
         """User-approved file selection via standard Windows file picker."""

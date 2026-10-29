@@ -1,3 +1,26 @@
+from nova.ui.widgets.os_matrix_cockpit import OSMatrixCockpitWidget
+from nova.ui.left_sidebar import LeftNavSidebar
+from nova.ui.right_dashboard import RightSystemDashboard
+from nova.ui.workspace_bar import WorkspaceThumbnailBar
+from nova.ui.widgets.windows_shell_tools import WindowsShellToolsWidget
+from nova.ui.widgets.media_hub import MediaHubWidget
+from nova.ui.widgets.arcade_hub import ArcadeHubWidget
+from nova.ui.widgets.network_tools import NetworkToolsWidget
+from nova.ui.widgets.security_fortress_widget import SecurityFortressWidget
+from nova.ui.widgets.productivity_hub import ProductivityHubWidget
+from nova.ui.alt_tab_hud import AltTabHUD
+from nova.ui.lock_screen import CyberLockScreen
+from nova.usb_manager import USBManager
+from nova.recycle_bin import RecycleBinWidget
+from nova.ui.widgets.startup_manager import StartupManager
+from nova.ui.widgets.uninstaller import AppUninstaller
+from nova.ui.widgets.event_viewer import SystemEventViewer
+from nova.ui.datetime_settings import DateTimeSettings
+from nova.ui.accessibility import AccessibilityCenter
+from nova.hotkeys import HotkeyRebinderWidget
+from nova.pajama.dojo import PajamaDojoWidget
+from nova.pajama.canvas import PajamaCanvasWindow
+from nova.auto_repair import AutoRepairMatrix
 """
 Master Desktop Environment & Window Manager for NOVA OS.
 Coordinates the cybernetic desktop canvas, floating window frames, taskbar,
@@ -48,7 +71,10 @@ from nova.ui.widgets.calendar_widget import CalendarRemindersWidget
 from nova.ui.widgets.privacy_center import PrivacyCenterWidget
 from nova.ui.widgets.nova_search import NovaSearchWidget
 from nova.ui.widgets.agent_hub import AgentHubWidget
+from nova.ui.widgets.research_cockpit import ResearchCockpitWidget
 from nova.ui.widgets.vault_widget import VaultWidget
+from nova.ui.widgets.pajama_studio import PajamaStudioWidget
+from nova.ui.widgets.windows_app_hub import WindowsAppHubWidget
 from nova.ui.widgets.quick_launcher import QuickLauncherWidget
 from nova.ui.widgets.cyber_wallpaper import CyberWallpaperWidget
 from nova.wake_word import WakeWordWorker
@@ -109,7 +135,7 @@ class CyberDesktopHost(QWidget):
     def load_wallpaper(self):
         saved_path = get_setting("custom_wallpaper", str(DEFAULT_WALLPAPER_PATH))
         p = Path(saved_path)
-        if not p.exists():
+        if not p.exists() or "mountain" in str(p):
             p = DEFAULT_WALLPAPER_PATH
         if p.exists():
             self._wallpaper_path = str(p)
@@ -197,7 +223,7 @@ class CyberDesktopHost(QWidget):
         painter.drawText(
             QRect(w - 420, h - 24, 400, 18),
             Qt.AlignRight | Qt.AlignVCenter,
-            "NOVA OS [AI TRIAL SANDBOX] • SAFE ON WINDOWS"
+            "NOVA OS • PERSONALIZED SPACE DESKTOP • SAFE ON WINDOWS"
         )
         painter.end()
         self._cached_pixmap = pixmap
@@ -250,6 +276,10 @@ class DesktopCanvas(QWidget):
         self.icon_layer = DesktopIconLayer(self)
         self.icon_manager = DesktopIconManager(self.icon_layer)
 
+        # Bottom Workspace Switcher Card Deck
+        self.workspace_bar = WorkspaceThumbnailBar(self.icon_layer)
+        self.workspace_bar.show()
+
         self._ensure_stacking_order()
 
     def _ensure_stacking_order(self):
@@ -280,6 +310,8 @@ class DesktopCanvas(QWidget):
             self.cyber_wallpaper.setGeometry(0, 0, w, h)
         if hasattr(self, "icon_layer"):
             self.icon_layer.setGeometry(0, 0, w, h)
+        if hasattr(self, "workspace_bar") and self.workspace_bar:
+            self.workspace_bar.move(25, max(80, h - 85))
         self._ensure_stacking_order()
         if hasattr(self, "clock_widget") and self.clock_widget:
             x = max(100, w - 280)
@@ -496,9 +528,33 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Desktop Workspace Canvas (transparent, hosts shortcuts and windows)
-        self.desktop_canvas = DesktopCanvas(self.host_container)
-        main_layout.addWidget(self.desktop_canvas, stretch=1)
+        # Main Shell Horizontal Layout: Left Sidebar + Desktop Canvas + Right Dashboard
+        body_container = QWidget(self.host_container)
+        body_container.setObjectName("BodyContainer")
+        body_container.setStyleSheet("background: transparent;")
+        body_layout = QHBoxLayout(body_container)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(0)
+
+        # 1. Left Navigation Sidebar
+        self.left_sidebar = LeftNavSidebar(body_container)
+        self.left_sidebar.app_requested.connect(self._on_left_nav_requested)
+        body_layout.addWidget(self.left_sidebar)
+
+        # 2. Central Desktop Canvas
+        self.desktop_canvas = DesktopCanvas(body_container)
+        self.desktop_canvas.workspace_bar.workspace_changed.connect(self._on_workspace_bar_changed)
+        body_layout.addWidget(self.desktop_canvas, stretch=1)
+
+        # 3. Right System Dashboard
+        self.right_dashboard = RightSystemDashboard(self.system_monitor, body_container)
+        self.right_dashboard.settings_requested.connect(lambda: self.launch_app("settings"))
+        self.right_dashboard.dark_mode_toggled.connect(self._toggle_dark_mode)
+        self.right_dashboard.focus_mode_toggled.connect(self._toggle_focus_mode)
+        self.right_dashboard.lock_requested.connect(self.lock_screen)
+        body_layout.addWidget(self.right_dashboard)
+
+        main_layout.addWidget(body_container, stretch=1)
 
         # Notification Stack Manager (HUD overlay)
         self.notification_manager = NotificationManager(self.desktop_canvas)
@@ -507,6 +563,23 @@ class MainWindow(QMainWindow):
         self.clipboard_listener = ClipboardListener(self)
         self.clipboard_dialog = ClipboardHistoryDialog(self)
         self.clipboard_dialog.snippet_selected.connect(self._on_clipboard_snippet_selected)
+
+        # Alt+Tab App Switcher HUD
+        self.alt_tab_hud = AltTabHUD(self.desktop_canvas)
+        self.alt_tab_hud.window_selected.connect(self._on_alt_tab_selected)
+
+        # Cyber Lock Screen (Win+L / Ctrl+L)
+        self.lock_screen_overlay = CyberLockScreen(self)
+        self.lock_screen_overlay.unlocked.connect(lambda: play_sound("success"))
+
+        # Removable Media / USB Manager
+        self.usb_manager = USBManager(self)
+        self.usb_manager.drive_inserted.connect(self._on_usb_drive_inserted)
+
+        # Self-Healing RAM & Watchdog Timer
+        self.auto_repair_timer = QTimer(self)
+        self.auto_repair_timer.timeout.connect(self._run_auto_repair_check)
+        self.auto_repair_timer.start(60000)
 
         # Universal Search HUD Dialog
         self.search_dialog = UniversalSearchDialog(self)
@@ -553,14 +626,73 @@ class MainWindow(QMainWindow):
         dock_layout.addWidget(self.taskbar)
         main_layout.addWidget(dock_container)
 
+
+    def _on_left_nav_requested(self, key: str):
+        if key == "home":
+            for app_id, item in list(self.windows.items()):
+                frame = item[0] if isinstance(item, tuple) else item
+                if frame.isMinimized():
+                    frame.showNormal()
+                frame.raise_()
+        elif key == "workspace":
+            self.launch_app("workspace")
+        elif key == "dashboard":
+            self.launch_app("dashboard")
+        elif key in ("browser", "files", "chat", "terminal", "settings", "voice", "winapps"):
+            self.launch_app(key)
+        else:
+            self.launch_app(key)
+
+    def switch_desktop(self, index: int):
+        """Switches virtual desktop / workspace profile by index (1: General, 2: Research, 3: Coding, 4: Personal)."""
+        profiles = ["study", "research", "coding", "personal"]
+        idx = max(0, min(len(profiles) - 1, index - 1))
+        target_id = profiles[idx]
+        self.workspace_manager.switch_to(target_id)
+
+    def _on_workspace_bar_changed(self, key: str):
+        ws_map = {
+            "desktop": "study",
+            "general": "study",
+            "research": "research",
+            "dev": "coding",
+            "coding": "coding",
+            "personal": "personal"
+        }
+        if key in ws_map:
+            target_id = ws_map[key]
+            self.workspace_manager.switch_to(target_id)
+        elif key in ("new", "manage"):
+            self.notify("WORKSPACES", "Opening Workspace Profiles Manager...", "info", 2000)
+            self.launch_app("workspace")
+
+    def _toggle_dark_mode(self):
+        self.notify("THEME MODE", "NOVA Cyber Dark Palette Active.", "info", 2000)
+
+    def _toggle_focus_mode(self):
+        self.notify("FOCUS MODE", "Zen Focus Mode Engaged. Distractions Minimized.", "info", 2500)
+
     def _on_desktop_icon_activated(self, data: dict):
         if hasattr(self.desktop_canvas, "icon_manager") and self.desktop_canvas.icon_manager:
             self.desktop_canvas.icon_manager.launch_target(data, self.launch_app)
 
     def setup_shortcuts(self):
+        # Alt+Tab App Switcher Carousel
+        QShortcut(QKeySequence("Alt+Tab"), self, self.toggle_alt_tab)
+
+        # Cyber Lock Screen (Ctrl+L)
+        QShortcut(QKeySequence("Ctrl+L"), self, self.lock_screen)
+
+        # Quick Hotkeys: Terminal (Ctrl+Alt+T) & Pajama (Ctrl+Shift+P)
+        QShortcut(QKeySequence("Ctrl+Alt+T"), self, lambda: self.launch_app("terminal"))
+        QShortcut(QKeySequence("Ctrl+Shift+P"), self, lambda: self.launch_app("pajama"))
+
         # Siri-Style NOVA Voice Assistant (Ctrl+Shift+Space or F4)
         QShortcut(QKeySequence("Ctrl+Shift+Space"), self, self.toggle_voice_assistant)
         QShortcut(QKeySequence("F4"), self, self.toggle_voice_assistant)
+
+        # Escape key to restore maximized windows or dismiss immersive views
+        QShortcut(QKeySequence("Escape"), self, self._handle_escape_key)
 
         # Universal Search HUD (Spotlight)
         QShortcut(QKeySequence("Ctrl+Space"), self, self.toggle_search)
@@ -596,6 +728,32 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Alt+D"), self, lambda: self.launch_app("docsearch"))
         QShortcut(QKeySequence("Alt+C"), self, self.toggle_search_calc)
 
+    def _handle_escape_key(self):
+        """Restores any active maximized window to normal floating geometry or dismisses active overlays."""
+        if hasattr(self, "search_dialog") and self.search_dialog.isVisible():
+            self.search_dialog.hide()
+            return
+        if hasattr(self, "quick_settings") and self.quick_settings.isVisible():
+            self.quick_settings.hide()
+            return
+        if hasattr(self, "clipboard_dialog") and self.clipboard_dialog.isVisible():
+            self.clipboard_dialog.hide()
+            return
+        # Find active / topmost maximized window and restore it
+        for app_id, item in list(self.windows.items()):
+            frame = item[0] if isinstance(item, tuple) else item
+            if frame.isVisible() and getattr(frame, "is_maximized", False):
+                frame.restore_window()
+                return
+
+    def _on_accessibility_changed(self, data: dict):
+        """Applies live accessibility settings across the shell."""
+        if "effects_mode" in data:
+            self.apply_desktop_effects_mode(data["effects_mode"])
+        if "reduced_motion" in data and data["reduced_motion"]:
+            self.apply_desktop_effects_mode("clean")
+            self.notify("ACCESSIBILITY", "Reduced motion engaged. Animated effects paused.", "info", 3000)
+
     def apply_theme(self, accent_name: str):
         qss = get_stylesheet(accent_name)
         app = QApplication.instance()
@@ -609,9 +767,18 @@ class MainWindow(QMainWindow):
             if self.isMinimized():
                 if hasattr(self, "desktop_canvas"):
                     self.desktop_canvas.pause_wallpaper()
+                if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "set_update_interval"):
+                    self.right_dashboard.set_update_interval(5000)
+                try:
+                    from nova.memory_optimizer import get_memory_optimizer
+                    get_memory_optimizer().trim_current_process()
+                except Exception:
+                    pass
             else:
                 if hasattr(self, "desktop_canvas"):
                     self.desktop_canvas.resume_wallpaper()
+                if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "set_update_interval"):
+                    self.right_dashboard.set_update_interval(1000)
         super().changeEvent(event)
 
     def apply_desktop_effects_mode(self, mode: str):
@@ -620,11 +787,30 @@ class MainWindow(QMainWindow):
             self.desktop_canvas.set_effects_mode(mode)
 
     def apply_performance_mode(self, mode: str):
-        """Propagates performance mode to active widgets."""
+        """Propagates performance mode to active widgets and throttles polling."""
         if "dashboard" in self.windows:
             frame, _ = self.windows["dashboard"]
             if hasattr(frame, "content_widget") and hasattr(frame.content_widget, "set_performance_mode"):
                 frame.content_widget.set_performance_mode(mode)
+
+        if "Low Resource" in mode or "Battery" in mode:
+            if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "set_update_interval"):
+                self.right_dashboard.set_update_interval(3000)
+            self.apply_desktop_effects_mode("Clean")
+            try:
+                from nova.memory_optimizer import get_memory_optimizer
+                get_memory_optimizer().trim_current_process()
+            except Exception:
+                pass
+        elif "High Fidelity" in mode:
+            if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "set_update_interval"):
+                self.right_dashboard.set_update_interval(500)
+            self.apply_desktop_effects_mode("Cyber")
+        else:
+            # Balanced (Default)
+            if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "set_update_interval"):
+                self.right_dashboard.set_update_interval(1000)
+            self.apply_desktop_effects_mode("Balanced")
 
     def launch_app(self, app_id: str, initial_pos=None, initial_size=None, url: str = None):
         """Creates or restores an application window on the desktop canvas."""
@@ -754,12 +940,110 @@ class MainWindow(QMainWindow):
             widget = AgentHubWidget(self.ollama_client)
             title = "NOVA AUTONOMOUS AGENT"
             icon = "🚀"
-            default_size = (760, 560)
+            default_size = (800, 580)
+        elif app_id in ("research", "research_agent"):
+            widget = ResearchCockpitWidget()
+            title = "NOVA RESEARCH AGENT"
+            icon = "🌐"
+            default_size = (840, 600)
         elif app_id == "vault":
             widget = VaultWidget(self.ollama_client)
             title = "NOVA DOCUMENT VAULT"
             icon = "📚"
             default_size = (760, 540)
+        elif app_id in ("pajama", "pajama_studio", "studio", "pajama-studio"):
+            widget = PajamaStudioWidget(self.ollama_client)
+            title = "PAJAMA SCRIPT STUDIO"
+            icon = "⚡"
+            default_size = (920, 640)
+        elif app_id in ("winapps", "windows_apps", "apps", "app_hub"):
+            widget = WindowsAppHubWidget(parent=self)
+            if hasattr(self, "icon_manager"):
+                widget.desktop_updated.connect(lambda: self.icon_manager.load_shortcuts() and self.icon_manager.render_icons(self.launch_app))
+            title = "WINDOWS APPLICATION BRIDGE"
+            icon = "🪟"
+            default_size = (860, 600)
+        elif app_id in ("recycle_bin", "trash"):
+            widget = RecycleBinWidget()
+            title = "RECYCLE BIN & RECOVERY"
+            icon = "🗑️"
+            default_size = (780, 520)
+        elif app_id in ("startup", "startup_manager"):
+            widget = StartupManager()
+            title = "STARTUP APPLICATIONS"
+            icon = "🚀"
+            default_size = (720, 480)
+        elif app_id in ("uninstaller", "app_uninstaller"):
+            widget = AppUninstaller()
+            title = "APP UNINSTALLER & CLEANER"
+            icon = "📦"
+            default_size = (740, 500)
+        elif app_id in ("events", "event_viewer", "diagnostics"):
+            widget = SystemEventViewer()
+            title = "SYSTEM EVENT VIEWER"
+            icon = "📜"
+            default_size = (840, 560)
+        elif app_id in ("datetime", "time_settings"):
+            widget = DateTimeSettings()
+            title = "DATE & TIME SETTINGS"
+            icon = "🕒"
+            default_size = (620, 420)
+        elif app_id in ("accessibility", "a11y"):
+            widget = AccessibilityCenter()
+            widget.accessibility_changed.connect(self._on_accessibility_changed)
+            title = "ACCESSIBILITY & USABILITY"
+            icon = "♿"
+            default_size = (680, 460)
+        elif app_id in ("hotkeys", "shortcuts"):
+            widget = HotkeyRebinderWidget()
+            title = "HOTKEY REBINDER"
+            icon = "⌨️"
+            default_size = (680, 480)
+        elif app_id in ("dojo", "pajama_dojo"):
+            widget = PajamaDojoWidget()
+            title = "PAJAMA DOJO ACADEMY"
+            icon = "🥋"
+            default_size = (860, 580)
+        elif app_id in ("canvas", "2d_canvas", "games"):
+            widget = PajamaCanvasWindow()
+            title = "PAJAMA 2D GAME CANVAS"
+            icon = "🎮"
+            default_size = (540, 440)
+        elif app_id in ("shell_tools", "wsl", "services", "dns"):
+            widget = WindowsShellToolsWidget()
+            title = "WINDOWS SUBSYSTEMS & SHELL TOOLS"
+            icon = "🪟"
+            default_size = (860, 600)
+        elif app_id in ("media_hub", "cyberamp", "player", "music"):
+            widget = MediaHubWidget()
+            title = "CYBER MULTIMEDIA & AUDIO STUDIO"
+            icon = "🎬"
+            default_size = (840, 580)
+        elif app_id in ("arcade_hub", "arcade", "retro_games", "invaders"):
+            widget = ArcadeHubWidget()
+            title = "NOVA RETRO ARCADE HUB"
+            icon = "👾"
+            default_size = (860, 600)
+        elif app_id in ("network_tools", "companion", "lan", "speedtest"):
+            widget = NetworkToolsWidget()
+            title = "NETWORK TOOLS & COMPANION"
+            icon = "🌐"
+            default_size = (840, 560)
+        elif app_id in ("security_fortress", "totp", "shredder", "panic"):
+            widget = SecurityFortressWidget()
+            title = "SECURITY FORTRESS & FORENSICS"
+            icon = "🛡️"
+            default_size = (760, 540)
+        elif app_id in ("productivity_hub", "kanban", "pomodoro", "habits"):
+            widget = ProductivityHubWidget()
+            title = "PRODUCTIVITY & KANBAN MATRIX"
+            icon = "📋"
+            default_size = (860, 600)
+        elif app_id in ("os_matrix", "kernel_matrix", "matrix", "cockpit"):
+            widget = OSMatrixCockpitWidget()
+            title = "100,000 KERNEL ARCHITECTURE MATRIX"
+            icon = "🧬"
+            default_size = (980, 650)
         elif app_id == "launcher":
             self.toggle_quick_launcher()
             return
@@ -774,15 +1058,20 @@ class MainWindow(QMainWindow):
 
         # Position and size
         size = initial_size or default_size
-        frame.resize(size[0], size[1])
+        pw = max(900, self.desktop_canvas.width())
+        ph = max(600, self.desktop_canvas.height())
+        cx = max(20, (pw - size[0]) // 2)
+        cy = max(20, (ph - size[1]) // 2)
+        frame.normal_geometry = QRect(cx, cy, size[0], size[1])
 
         if initial_pos:
+            frame.resize(size[0], size[1])
             frame.move(initial_pos[0], initial_pos[1])
+            frame.is_maximized = False
+            frame.max_btn.setText("▢")
         else:
-            self._stagger_offset = (self._stagger_offset + 30) % 180
-            pos_x = 80 + self._stagger_offset
-            pos_y = 50 + self._stagger_offset
-            frame.move(pos_x, pos_y)
+            # Maximized by default as specified
+            frame.maximize_window()
 
         frame.show()
         frame.raise_()
@@ -802,6 +1091,34 @@ class MainWindow(QMainWindow):
             frame.raise_()
             self.windows[app_id] = (frame, True)
         self.taskbar.update_active_windows(self.windows)
+
+    def toggle_alt_tab(self):
+        open_wins = []
+        for app_id, (frame, is_visible) in self.windows.items():
+            open_wins.append((frame.title_text, frame.icon_text, frame))
+        if open_wins:
+            self.alt_tab_hud.show_switcher(open_wins, parent_widget=self)
+
+    def _on_alt_tab_selected(self, frame_obj):
+        if frame_obj:
+            frame_obj.show()
+            frame_obj.raise_()
+
+    def lock_screen(self):
+        play_sound("alert")
+        self.lock_screen_overlay.lock()
+
+    def _on_usb_drive_inserted(self, drive_info: dict):
+        mount = drive_info.get("mountpoint", "Removable")
+        gb = drive_info.get("total_gb", 0)
+        self.notify("USB Drive Detected", f"Volume {mount} ({gb} GB) mounted. Open in File Vault?", "info", 6000)
+        play_sound("chime")
+
+    def _run_auto_repair_check(self):
+        report = AutoRepairMatrix.run_diagnostic_check()
+        if report.get("repairs"):
+            repairs_str = "; ".join(report["repairs"])
+            self.notify("Auto-Repair Matrix", f"Memory optimized: {repairs_str}", "info", 4000)
 
     def on_window_closed(self, app_id: str):
         if app_id in self.windows:
@@ -882,9 +1199,14 @@ class MainWindow(QMainWindow):
 
     def _on_workspace_applied(self, ws: dict):
         """Applies theme and notifies user when a workspace profile is activated."""
-        theme = ws.get("theme", "Cyber Cyan")
+        theme = ws.get("theme", "Cosmic Cyan")
         self.apply_theme(theme)
-        self.notify("WORKSPACE PROFILE ACTIVATED", f"Switched to {ws['name']}\nFocus: {ws.get('description', '')}", "info", 4000)
+        # Synchronize thumbnail bar active indicator
+        card_map = {"study": "desktop", "research": "research", "coding": "dev", "personal": "personal"}
+        target_card = card_map.get(ws.get("id"), "desktop")
+        if hasattr(self, "desktop_canvas") and hasattr(self.desktop_canvas, "workspace_bar"):
+            self.desktop_canvas.workspace_bar.set_active_workspace(target_card)
+        self.notify("WORKSPACE PROFILE ACTIVATED", f"Switched to {ws['name']}\nFocus: {ws.get('description', '')}", "info", 3500)
 
     def _on_workspace_switched(self, ws: dict):
         self._on_workspace_applied(ws)
@@ -1015,6 +1337,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, "ai_status_timer") and self.ai_status_timer.isActive():
             self.ai_status_timer.stop()
 
+        if hasattr(self, "auto_repair_timer") and self.auto_repair_timer.isActive():
+            self.auto_repair_timer.stop()
+
+        if hasattr(self, "right_dashboard") and hasattr(self.right_dashboard, "cleanup"):
+            self.right_dashboard.cleanup()
+
         if hasattr(self, "_ai_worker") and self._ai_worker is not None:
             if self._ai_worker.isRunning():
                 self._ai_worker.cancel()
@@ -1044,6 +1372,13 @@ class MainWindow(QMainWindow):
                         pass
                 if hasattr(cw, "cleanup"):
                     cw.cleanup()
+
+        # Final working set flush on shutdown
+        try:
+            from nova.memory_optimizer import get_memory_optimizer
+            get_memory_optimizer().trim_current_process()
+        except Exception:
+            pass
 
     def confirm_exit(self):
         reply = QMessageBox.question(

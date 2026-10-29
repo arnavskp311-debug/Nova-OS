@@ -70,7 +70,7 @@ class MetricCard(QFrame):
         self.setStyleSheet("""
             QFrame#AccentCard {
                 background-color: #0d1527;
-                border: 1px solid rgba(0, 240, 255, 0.22);
+                border: 1px solid rgba(0, 210, 230, 0.22);
                 border-radius: 8px;
             }
         """)
@@ -81,7 +81,7 @@ class MetricCard(QFrame):
         # Header
         top_layout = QHBoxLayout()
         self.title_lbl = QLabel(title)
-        self.title_lbl.setStyleSheet("color: #00f0ff; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;")
+        self.title_lbl.setStyleSheet("color: #00d2e6; font-weight: 700; font-size: 11px; letter-spacing: 0.5px;")
         top_layout.addWidget(self.title_lbl)
 
         self.sub_lbl = QLabel(subtitle)
@@ -107,7 +107,7 @@ class MetricCard(QFrame):
                 border-radius: 3px;
             }
             QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0052cc, stop:1 #00f0ff);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0052cc, stop:1 #00d2e6);
                 border-radius: 2px;
             }
         """)
@@ -197,7 +197,7 @@ class DashboardWidget(QWidget):
                 min-height: 20px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #00f0ff;
+                background: #00d2e6;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -244,7 +244,7 @@ class DashboardWidget(QWidget):
         self.uptime_badge = QLabel("Uptime: --")
         self.uptime_badge.setStyleSheet("""
             QLabel {
-                color: #00f0ff;
+                color: #00d2e6;
                 font-weight: 600;
                 font-size: 11px;
                 padding: 4px 10px;
@@ -290,7 +290,7 @@ class DashboardWidget(QWidget):
         specs_layout.setSpacing(8)
 
         specs_title = QLabel("HARDWARE ENVIRONMENT")
-        specs_title.setStyleSheet("color: #00f0ff; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;")
+        specs_title.setStyleSheet("color: #00d2e6; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;")
         specs_layout.addWidget(specs_title, 0, 0, 1, 2)
 
         lbl_style = "color: #8fa0b5; font-size: 11px; font-weight: 500;"
@@ -328,7 +328,7 @@ class DashboardWidget(QWidget):
         proc_box.setSpacing(8)
 
         proc_header = QLabel("ACTIVE PROCESS MONITOR (READ-ONLY TELEMETRY)")
-        proc_header.setStyleSheet("color: #00f0ff; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;")
+        proc_header.setStyleSheet("color: #00d2e6; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;")
         proc_box.addWidget(proc_header)
 
         self.proc_table = QTableWidget()
@@ -350,7 +350,7 @@ class DashboardWidget(QWidget):
             }
             QHeaderView::section {
                 background-color: #10182c;
-                color: #00f0ff;
+                color: #00d2e6;
                 font-weight: 700;
                 font-size: 11px;
                 border: 1px solid rgba(255, 255, 255, 0.06);

@@ -1,0 +1,34 @@
+{
+  "universal_search": {
+    "name": "Universal Search & Directives",
+    "shortcut": "Ctrl+Space"
+  },
+  "voice_assistant": {
+    "name": "Voice Assistant",
+    "shortcut": "Ctrl+Shift+Space"
+  },
+  "quick_settings": {
+    "name": "Quick Settings Flyout",
+    "shortcut": "Ctrl+Shift+S"
+  },
+  "lock_screen": {
+    "name": "Lock NOVA Screen",
+    "shortcut": "Ctrl+L"
+  },
+  "alt_tab": {
+    "name": "App Switcher Carousel",
+    "shortcut": "Alt+Tab"
+  },
+  "terminal": {
+    "name": "Safe Cyber Terminal",
+    "shortcut": "Ctrl+Alt+T"
+  },
+  "pajama": {
+    "name": "Pajama Studio IDE",
+    "shortcut": "Ctrl+Shift+P"
+  },
+  "fullscreen_kiosk": {
+    "name": "Toggle Borderless Fullscreen",
+    "shortcut": "F11"
+  }
+}

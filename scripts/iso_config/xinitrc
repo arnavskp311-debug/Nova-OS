@@ -1,0 +1,26 @@
+#!/bin/sh
+# NOVA OS Live X11 Autostart Script
+
+# Disable screen blanking & DPMS power saving
+xset s off
+xset -dpms
+xset s noblank
+
+# Set deep space background color
+xsetroot -solid "#060b18"
+
+# Start lightweight Openbox window manager
+if command -v openbox >/dev/null 2>&1; then
+    openbox &
+fi
+
+# Ensure user audio daemon is active
+if command -v pipewire >/dev/null 2>&1; then
+    pipewire &
+    pipewire-pulse &
+    wireplumber &
+fi
+
+# Launch NOVA OS in full-screen desktop mode
+cd /opt/nova-os
+exec /usr/bin/python3 /opt/nova-os/main.py --fullscreen

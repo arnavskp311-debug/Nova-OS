@@ -1,0 +1,73 @@
+{
+  "space_invaders": [
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    },
+    {
+      "initials": "NEO",
+      "score": 9999,
+      "date": "2026-10-27"
+    }
+  ],
+  "cyber_snake": [
+    {
+      "initials": "VIP",
+      "score": 450,
+      "date": "2026-10-25"
+    },
+    {
+      "initials": "HEX",
+      "score": 380,
+      "date": "2026-10-26"
+    }
+  ],
+  "roguelike": [
+    {
+      "initials": "ARK",
+      "score": 12,
+      "date": "2026-10-26"
+    }
+  ]
+}

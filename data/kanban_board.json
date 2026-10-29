@@ -1,0 +1,138 @@
+{
+  "todo": [
+    {
+      "id": "t1",
+      "title": "Implement Pajama Regex Engine",
+      "tag": "Feature"
+    },
+    {
+      "id": "t2",
+      "title": "Configure GPU VRAM Alert",
+      "tag": "Telemetry"
+    },
+    {
+      "id": "c_1793108820329",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793108878655",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793109167807",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793110065851",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793110197928",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793116640346",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793116722065",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793117171884",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793117272060",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793117531299",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793178971152",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793179049161",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793179354023",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793179634977",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793187158242",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793187259303",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793187302227",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793189188831",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793189890615",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793195173579",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    },
+    {
+      "id": "c_1793195227933",
+      "title": "Unit Test Automation Card",
+      "tag": "General"
+    }
+  ],
+  "progress": [
+    {
+      "id": "t3",
+      "title": "Review CyberAmp FFT Spectrum",
+      "tag": "Audio"
+    }
+  ],
+  "done": [
+    {
+      "id": "t4",
+      "title": "Build 25 Mandatory OS Features",
+      "tag": "Kernel"
+    },
+    {
+      "id": "t5",
+      "title": "Pass All 23 Master Test Suites",
+      "tag": "Quality"
+    }
+  ]
+}

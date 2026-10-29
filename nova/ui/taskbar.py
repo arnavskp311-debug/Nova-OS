@@ -1,3 +1,8 @@
+from nova.ui.tray_flyouts import (
+    VolumeFlyout, WifiFlyout, BatteryFlyout, DisplayFlyout, BluetoothFlyout
+)
+from nova.ui.keyboard_switcher import KeyboardSwitcherPill
+from nova.ui.virtual_desktops import VirtualDesktopManager, VirtualDesktopPillWidget
 """
 Futuristic Cyber Taskbar and App Launcher for NOVA OS.
 Hosts the Start Menu, active window task buttons, system status indicators, and live clock.
@@ -76,6 +81,10 @@ class LauncherPopup(QFrame):
         self.apps = [
             ("browser", "🌐 NOVA Cyber Browser", "Secure web runtime with Safe Chrome Companion"),
             ("dashboard", "📊 Performance Center", "Live CPU, RAM, Disk & Network diagnostics"),
+            ("pajama", "⚡ Pajama Studio IDE", "Cyber scripting environment with AI generation"),
+            ("winapps", "🪟 Windows Apps", "Universal Windows Application Bridge"),
+            ("dojo", "🥋 Pajama Dojo", "10-Level Gamified Cyber Coding Academy"),
+            ("canvas", "🎮 2D Game Canvas", "Interactive retro games: Cyber Snake & Neon Pong"),
             ("workspace", "🗂 Workspace Profiles", "Switch between Study, Coding, Research & Personal"),
             ("backup", "📦 Backup & Restore", "Snapshot settings, workspaces, notes & browser data"),
             ("docsearch", "🔍 AI Document Search", "Private local search across documents and project files"),
@@ -83,6 +92,13 @@ class LauncherPopup(QFrame):
             ("notes", "📝 NovaPad Knowledge", "Local notes & markdown documentation"),
             ("calendar", "📅 Calendar & Reminders", "Schedule agendas, tasks and focus timers"),
             ("automation", "⚡ Automation Studio", "Create and execute safe custom workflows"),
+            ("recycle_bin", "🗑️ Recycle Bin", "Quarantine and 1-click restore for deleted files"),
+            ("startup", "🚀 Startup Manager", "Configure applications launching with NOVA OS"),
+            ("uninstaller", "📦 App Uninstaller", "Clean removal of shortcuts and user packages"),
+            ("events", "📜 Event Viewer", "Real-time system diagnostics and security timeline"),
+            ("datetime", "🕒 Date & NTP Settings", "24h format & internet time synchronization"),
+            ("accessibility", "♿ Accessibility Center", "High-contrast neon, text scaling & screen feedback"),
+            ("hotkeys", "⌨️ Hotkey Rebinder", "Customize global shortcut key combinations"),
             ("memory", "🧠 AI Memory Manager", "View and control user-approved AI memories"),
             ("privacy", "🛡️ Privacy Center", "Control data retention, history & voice permissions"),
             ("novasearch", "❖ NOVA Search Portal", "Independent cyber search engine prototype"),
@@ -91,6 +107,13 @@ class LauncherPopup(QFrame):
             ("settings", "⚙ Control Center", "Configure AI models, themes & security"),
             ("clipboard", "📋 Clipboard History", "Browse and restore recent copied snippets"),
             ("voice", "🎙 NOVA Voice Assistant", "Conversational AI voice powered by Kokoro-82M"),
+            ("shell_tools", "🪟 Windows Shell Tools", "WSL2 Linux, Services, DNS & Hash Verifier"),
+            ("media_hub", "🎬 Cyber Multimedia", "CyberAmp Retro Winamp, Snipper & Pixel Editor"),
+            ("arcade_hub", "👾 Retro Arcade Hub", "Space Invaders, Roguelike Dungeon & High Scores"),
+            ("network_tools", "🌐 Network Companion", "Mobile Phone Dashboard, Subnet Map & Ping"),
+            ("security_fortress", "🛡️ Security Fortress", "2FA TOTP, 7-Pass Shredder & Panic Lockdown"),
+            ("productivity_hub", "📋 Productivity Hub", "Kanban Sprint Board, Pomodoro & Habit Streaks"),
+            ("os_matrix", "🧬 Kernel Matrix (100k)", "10-Domain Architecture: CPUID, 5-Level Paging, vTPM 2.0 & Drivers"),
         ]
 
         self.apps_container = QWidget()
@@ -215,9 +238,9 @@ class Taskbar(QFrame):
         layout.addWidget(self.start_btn)
 
         # Universal Search Trigger Button (Pill Search)
-        self.search_btn = QPushButton("🔍 Search... (Ctrl+Space)")
+        self.search_btn = QPushButton("🔍 Search apps, files, or web...")
         self.search_btn.setFixedHeight(34)
-        self.search_btn.setFixedWidth(160)
+        self.search_btn.setFixedWidth(220)
         self.search_btn.setCursor(Qt.PointingHandCursor)
         self.search_btn.setToolTip("Universal Search & Directives (Ctrl+Space / Alt+Space)")
         self.search_btn.setStyleSheet("""
@@ -265,13 +288,12 @@ class Taskbar(QFrame):
 
         # Quick Launchers
         quick_icons = [
-            ("browser", "🌐", "NOVA Cyber Browser"),
-            ("dashboard", "📊", "Telemetry Dashboard"),
+            ("browser", "🌐", "Web Browser"),
+            ("files", "📁", "File Manager & Vault"),
+            ("settings", "⚙", "Settings & Control"),
+            ("terminal", "💻", "Terminal Console"),
+            ("voice", "🎙", "Voice Assistant"),
             ("chat", "🤖", "NOVA AI Assistant"),
-            ("notes", "📝", "NovaPad Notes & Reminders"),
-            ("terminal", "💻", "Safe Cyber Terminal"),
-            ("files", "📁", "File Vault"),
-            ("settings", "⚙", "Control Center"),
         ]
         for app_id, icon, tip in quick_icons:
             btn = QPushButton(icon)
@@ -326,6 +348,82 @@ class Taskbar(QFrame):
         self.tasks_layout.setSpacing(6)
         self.tasks_layout.addStretch()
         layout.addWidget(self.tasks_container, stretch=1)
+
+        # Right Side System Tray
+        # Virtual Desktops Pill Widget
+        self.vdesktop_mgr = VirtualDesktopManager(count=3)
+        self.vdesktop_widget = VirtualDesktopPillWidget(self.vdesktop_mgr, self)
+        layout.addWidget(self.vdesktop_widget)
+
+        # System Tray Flyouts
+        self.volume_flyout = VolumeFlyout(self)
+        self.wifi_flyout = WifiFlyout(self)
+        self.battery_flyout = BatteryFlyout(self)
+        self.display_flyout = DisplayFlyout(self)
+        self.bluetooth_flyout = BluetoothFlyout(self)
+
+        tray_btn_style = '''
+            QPushButton {
+                background: #111a2e;
+                border: 1px solid rgba(0, 240, 255, 0.25);
+                border-radius: 15px;
+                color: #00f0ff;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: #00f0ff;
+                color: #050811;
+            }
+        '''
+
+        # Volume Tray Button
+        self.vol_btn = QPushButton("🔊")
+        self.vol_btn.setFixedSize(30, 30)
+        self.vol_btn.setCursor(Qt.PointingHandCursor)
+        self.vol_btn.setToolTip("Volume & Audio Output")
+        self.vol_btn.setStyleSheet(tray_btn_style)
+        self.vol_btn.clicked.connect(lambda: self._show_tray_flyout(self.volume_flyout, self.vol_btn))
+        layout.addWidget(self.vol_btn)
+
+        # Wi-Fi Tray Button
+        self.wifi_btn = QPushButton("📶")
+        self.wifi_btn.setFixedSize(30, 30)
+        self.wifi_btn.setCursor(Qt.PointingHandCursor)
+        self.wifi_btn.setToolTip("Wi-Fi & Wireless Networks")
+        self.wifi_btn.setStyleSheet(tray_btn_style)
+        self.wifi_btn.clicked.connect(lambda: self._show_tray_flyout(self.wifi_flyout, self.wifi_btn))
+        layout.addWidget(self.wifi_btn)
+
+        # Battery Tray Button
+        self.bat_btn = QPushButton("🔋")
+        self.bat_btn.setFixedSize(30, 30)
+        self.bat_btn.setCursor(Qt.PointingHandCursor)
+        self.bat_btn.setToolTip("Battery Health & Power Profiles")
+        self.bat_btn.setStyleSheet(tray_btn_style)
+        self.bat_btn.clicked.connect(lambda: self._show_tray_flyout(self.battery_flyout, self.bat_btn))
+        layout.addWidget(self.bat_btn)
+
+        # Display & Night Light Tray Button
+        self.disp_btn = QPushButton("☀️")
+        self.disp_btn.setFixedSize(30, 30)
+        self.disp_btn.setCursor(Qt.PointingHandCursor)
+        self.disp_btn.setToolTip("Display Brightness & Night Light")
+        self.disp_btn.setStyleSheet(tray_btn_style)
+        self.disp_btn.clicked.connect(lambda: self._show_tray_flyout(self.display_flyout, self.disp_btn))
+        layout.addWidget(self.disp_btn)
+
+        # Bluetooth Tray Button
+        self.bt_btn = QPushButton("ᛒ")
+        self.bt_btn.setFixedSize(30, 30)
+        self.bt_btn.setCursor(Qt.PointingHandCursor)
+        self.bt_btn.setToolTip("Bluetooth Peripherals")
+        self.bt_btn.setStyleSheet(tray_btn_style)
+        self.bt_btn.clicked.connect(lambda: self._show_tray_flyout(self.bluetooth_flyout, self.bt_btn))
+        layout.addWidget(self.bt_btn)
+
+        # Keyboard layout pill
+        self.kb_pill = KeyboardSwitcherPill(self)
+        layout.addWidget(self.kb_pill)
 
         # Right Side System Tray
         # AI Status Tag (Dynamic Pill)

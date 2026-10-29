@@ -162,12 +162,68 @@ class TerminalWidget(QWidget):
         if cmd.lower() == "help":
             help_text = (
                 "\nNOVA OS Shell Help:\n"
+                "  - Pajama language: pajama run <file.pj>, pajama -c \"say 'hi'\", pajama help\n"
                 "  - Safe commands (read-only): dir, whoami, ipconfig, date /t, hostname, python --version\n"
                 "  - Simulated OS commands: reboot, shutdown, poweroff, kernel-upgrade, clear-cache\n"
                 "  - Blocked commands: format, bcdedit, diskpart, del C:\\windows, registry edits\n"
                 "  - Other commands: Require user confirmation via security approval dialog."
             )
             self.console.appendPlainText(help_text)
+            self._scroll_bottom()
+            return
+
+        # Native Pajama Language Command
+        if cmd.lower().startswith("pajama"):
+            parts = cmd.split(maxsplit=2)
+            subcmd = parts[1].lower() if len(parts) > 1 else "help"
+            if subcmd in ("help", "--help", "-h", "info"):
+                from nova.pajama.spec import PAJAMA_LANGUAGE_DOCS
+                self.console.appendPlainText(f"\n{PAJAMA_LANGUAGE_DOCS}")
+                self._scroll_bottom()
+                return
+            if subcmd == "-c" and len(parts) > 2:
+                code = parts[2].strip().strip('"').strip("'")
+                from nova.pajama.runtime import execute_pajama
+                self.console.appendPlainText("\n[Executing Pajama snippet...]")
+                out = execute_pajama(code)
+                self.console.appendPlainText(out if out else "[Completed with no output]")
+                self._scroll_bottom()
+                return
+            if subcmd == "run" and len(parts) > 2:
+                file_path = parts[2].strip().strip('"').strip("'")
+                import os
+                if not os.path.exists(file_path):
+                    self.console.appendPlainText(f"\n[Pajama Error: File not found: {file_path}]")
+                else:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as pf:
+                        code = pf.read()
+                    from nova.pajama.runtime import execute_pajama
+                    self.console.appendPlainText(f"\n[Executing {file_path}...]")
+                    out = execute_pajama(code)
+                    self.console.appendPlainText(out if out else "[Completed with no output]")
+                self._scroll_bottom()
+                return
+            self.console.appendPlainText("\nUsage:\n  pajama run <script.pj>   : Run a Pajama file\n  pajama -c \"<code...>\"    : Run inline code\n  pajama help              : Display language specification\n")
+            self._scroll_bottom()
+            return
+
+        # Windows App Commands
+        if cmd.lower() in ("apps", "winapps", "list-apps"):
+            from nova.windows_apps import get_windows_app_manager
+            apps = get_windows_app_manager().discover_apps()
+            lines = [f"\nIndexed Windows Applications ({len(apps)} found):"]
+            for a in apps[:25]:
+                lines.append(f"  {a.icon} {a.name} [{a.category}] (alias: {a.alias})")
+            lines.append("  ... (Use 'launch <app>' or open Windows Apps Hub for full list)\n")
+            self.console.appendPlainText("\n".join(lines))
+            self._scroll_bottom()
+            return
+
+        if cmd.lower().startswith("launch "):
+            target_app = cmd[7:].strip().strip('"').strip("'")
+            from nova.windows_apps import get_windows_app_manager
+            ok, msg = get_windows_app_manager().launch_app(target_app)
+            self.console.appendPlainText(f"\n[{msg}]")
             self._scroll_bottom()
             return
 

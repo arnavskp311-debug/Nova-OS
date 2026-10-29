@@ -10,6 +10,7 @@ import logging
 import threading
 import shutil
 from pathlib import Path
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from nova.config import DB_PATH, BACKUPS_DIR, BROWSER_PROFILE_DIR, LOGS_DIR, DATA_DIR
@@ -18,7 +19,7 @@ logger = logging.getLogger("nova.database")
 
 _local_storage = threading.local()
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 def get_connection() -> sqlite3.Connection:
     """Returns a fast, thread-local pooled SQLite connection with WAL mode enabled."""
@@ -246,6 +247,49 @@ def init_db():
                 is_enabled INTEGER DEFAULT 1
             )
         """)
+
+        
+        # Research Sessions & Sources (Schema v5 - Autonomous Research Agent)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS research_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_uuid TEXT NOT NULL UNIQUE,
+                goal TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PLANNING',
+                summary TEXT,
+                confidence_score TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS research_sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT,
+                domain TEXT,
+                snippet TEXT,
+                status TEXT DEFAULT 'FETCHED',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES research_sessions(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS research_artifacts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                artifact_type TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES research_sessions(id) ON DELETE CASCADE
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_sessions_uuid ON research_sessions(session_uuid)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_sources_session ON research_sources(session_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_artifacts_session ON research_artifacts(session_id)")
+        cursor.execute("INSERT OR IGNORE INTO schema_migrations (version, description) VALUES (5, 'Schema v5: Autonomous Internet Research Agent sessions, sources, and artifacts')")
 
         # Performance Indexes for sub-millisecond query execution
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, id ASC)")
@@ -566,6 +610,32 @@ def get_recent_command_logs(limit: int = 50) -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM command_logs ORDER BY executed_at DESC LIMIT ?", (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+def clear_command_logs() -> int:
+    """Purges all recorded command execution audit logs from SQLite."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM command_logs")
+        deleted = cursor.rowcount
+        conn.commit()
+        return deleted
+
+def get_database_backup_list() -> List[Dict[str, Any]]:
+    """Returns sorted list of verified online database backup snapshots in BACKUPS_DIR."""
+    if not BACKUPS_DIR.exists():
+        return []
+    backups = []
+    for f in BACKUPS_DIR.glob("nova_backup_*.db"):
+        if f.is_file():
+            stat = f.stat()
+            backups.append({
+                "filename": f.name,
+                "path": str(f),
+                "size_kb": round(stat.st_size / 1024, 1),
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime))
+            })
+    backups.sort(key=lambda x: x["created_at"], reverse=True)
+    return backups
 
 # ----------------- NOVA Browser Operations (Safe & Isolated) -----------------
 
@@ -1086,3 +1156,114 @@ def set_browser_extension_enabled(ext_id: str, is_enabled: bool) -> bool:
 
 
 
+
+
+# ----------------- Autonomous Research Agent (Schema v5) -----------------
+
+def create_research_session(session_uuid: str, goal: str, status: str = "PLANNING") -> int:
+    """Creates a new autonomous research session record."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO research_sessions (session_uuid, goal, status)
+            VALUES (?, ?, ?)
+        """, (session_uuid, goal, status))
+        conn.commit()
+        return cursor.lastrowid
+
+def update_research_session(
+    session_id: int,
+    status: Optional[str] = None,
+    summary: Optional[str] = None,
+    confidence_score: Optional[str] = None
+) -> bool:
+    """Updates status, summary, and confidence score for a research session."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        updates = ["updated_at = CURRENT_TIMESTAMP"]
+        params = []
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if summary is not None:
+            updates.append("summary = ?")
+            params.append(summary)
+        if confidence_score is not None:
+            updates.append("confidence_score = ?")
+            params.append(confidence_score)
+        params.append(session_id)
+        sql = f"UPDATE research_sessions SET {', '.join(updates)} WHERE id = ?"
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def get_research_session(session_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves a research session record by ID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM research_sessions WHERE id = ?", (session_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_research_session_by_uuid(session_uuid: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a research session record by UUID."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM research_sessions WHERE session_uuid = ?", (session_uuid,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_all_research_sessions(limit: int = 50) -> List[Dict[str, Any]]:
+    """Lists recent research sessions."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM research_sessions ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [dict(r) for r in cursor.fetchall()]
+
+def add_research_source(
+    session_id: int,
+    url: str,
+    title: str = "",
+    domain: str = "",
+    snippet: str = "",
+    status: str = "FETCHED"
+) -> int:
+    """Logs a discovered or fetched web source."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO research_sources (session_id, url, title, domain, snippet, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (session_id, url, title, domain, snippet, status))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_research_sources(session_id: int) -> List[Dict[str, Any]]:
+    """Retrieves all sources attributed to a research session."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM research_sources WHERE session_id = ? ORDER BY id ASC", (session_id,))
+        return [dict(r) for r in cursor.fetchall()]
+
+def add_research_artifact(
+    session_id: int,
+    artifact_type: str,
+    file_path: str,
+    file_name: str
+) -> int:
+    """Logs a generated report, note, or downloaded file artifact."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO research_artifacts (session_id, artifact_type, file_path, file_name)
+            VALUES (?, ?, ?, ?)
+        """, (session_id, artifact_type, file_path, file_name))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_research_artifacts(session_id: int) -> List[Dict[str, Any]]:
+    """Retrieves all artifacts produced in a research session."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM research_artifacts WHERE session_id = ? ORDER BY id ASC", (session_id,))
+        return [dict(r) for r in cursor.fetchall()]

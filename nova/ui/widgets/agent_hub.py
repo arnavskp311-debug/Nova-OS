@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QListWidget, QListWidgetItem,
-    QProgressBar, QPlainTextEdit, QFrame, QSplitter
+    QProgressBar, QPlainTextEdit, QFrame, QSplitter, QTabWidget
 )
 from PySide6.QtCore import Qt, Slot, Signal
 from PySide6.QtGui import QFont, QColor
@@ -16,6 +16,7 @@ from PySide6.QtGui import QFont, QColor
 from nova.agent_engine import AgentEngine, AgentWorker
 from nova.ollama_client import OllamaClient
 from nova.sound_fx import play_sound
+from nova.ui.widgets.research_cockpit import ResearchCockpitWidget
 
 class AgentHubWidget(QWidget):
     """Mission control cockpit for autonomous multi-step intelligence."""
@@ -29,13 +30,45 @@ class AgentHubWidget(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        self.hub_tabs = QTabWidget()
+        self.hub_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid rgba(0, 240, 255, 0.2);
+                border-radius: 6px;
+                background: #0A0E19;
+            }
+            QTabBar::tab {
+                background: #0d1424;
+                color: #798fa7;
+                padding: 8px 16px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QTabBar::tab:selected {
+                background: #0A0E19;
+                color: #00F0FF;
+            }
+        """)
+
+        # Tab 1: Autonomous Internet Research Cockpit
+        self.research_cockpit = ResearchCockpitWidget(self)
+        self.hub_tabs.addTab(self.research_cockpit, "🌐 Autonomous Internet Research Agent")
+
+        # Tab 2: System Directives & Sandboxed Automation
+        directives_widget = QWidget()
+        layout = QVBoxLayout(directives_widget)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(10)
 
         # Header Title
         header = QHBoxLayout()
-        title = QLabel("NOVA AUTONOMOUS AGENT // DIRECTIVE COCKPIT")
+        title = QLabel("NOVA LOCAL DIRECTIVE ENGINE")
         title.setObjectName("HeaderTitle")
         title.setStyleSheet("font-size: 15px; font-weight: bold; color: #00F0FF;")
         header.addWidget(title)
@@ -220,6 +253,8 @@ class AgentHubWidget(QWidget):
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
         layout.addWidget(splitter)
+        self.hub_tabs.addTab(directives_widget, "⚡ Local Directives & Tasks")
+        root_layout.addWidget(self.hub_tabs)
 
     def _set_prompt(self, p: str):
         self.goal_input.setText(p)

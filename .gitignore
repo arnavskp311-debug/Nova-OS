@@ -15,9 +15,18 @@ data/logs/*
 data/browser_profile/*
 data/audio_cache/*
 data/backups/*
+data/quarantine/*
+data/recycle_bin/*
+data/workspace/*
+data/credential_vault.enc
 data/*.db*
 data/models/
 !data/.gitkeep
+
+# Backups and Ephemeral Artifacts
+backups/
+*.quarantined
+*.iso
 
 # IDE & OS
 .vscode/

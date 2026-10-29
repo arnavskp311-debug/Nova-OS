@@ -19,6 +19,11 @@ from nova.deterministic_actions import evaluate_math_expression
 from nova.memory_optimizer import get_memory_optimizer
 from nova.vault import get_vault
 from nova.sound_fx import play_sound
+from nova.workspace import get_research_workspace
+from nova.research.search_provider import get_search_provider
+from nova.research.safe_fetcher import get_safe_fetcher
+from nova.pajama.runtime import execute_pajama
+from nova.windows_apps import get_windows_app_manager
 
 logger = logging.getLogger("nova.agent")
 
@@ -71,6 +76,47 @@ class AgentEngine:
             description="Search local document vault (args: query)",
             handler=lambda **kw: get_vault().search_chunks(kw.get("query", ""), top_k=2)
         )
+        self.tools["web_search"] = AgentTool(
+            name="web_search",
+            description="Search the public internet safely (args: query, max_results)",
+            handler=lambda **kw: get_search_provider().search(kw.get("query", ""), int(kw.get("max_results", 3)))
+        )
+        self.tools["web_fetch"] = AgentTool(
+            name="web_fetch",
+            description="Fetch and sanitize public webpage text (args: url)",
+            handler=lambda **kw: get_safe_fetcher().fetch_webpage(kw.get("url", ""))[1]
+        )
+        self.tools["workspace_write"] = AgentTool(
+            name="workspace_write",
+            description="Save report or notes into sandboxed workspace (args: subfolder, filename, content)",
+            handler=lambda **kw: str(get_research_workspace().write_file(kw.get("subfolder", "notes"), kw.get("filename", "note.txt"), kw.get("content", "")))
+        )
+        self.tools["workspace_list"] = AgentTool(
+            name="workspace_list",
+            description="List generated research files in workspace (args: subfolder)",
+            handler=lambda **kw: get_research_workspace().list_files(kw.get("subfolder", ""))
+        )
+        self.tools["pajama_run"] = AgentTool(
+            name="pajama_run",
+            description="Execute a Pajama (.pj) script or snippet safely and return its output (args: code or script)",
+            handler=lambda **kw: execute_pajama(kw.get("code") or kw.get("script") or "")
+        )
+        self.tools["windows_app_launch"] = AgentTool(
+            name="windows_app_launch",
+            description="Launch any installed Windows application (args: app_name or path like notepad, calc, chrome)",
+            handler=lambda **kw: get_windows_app_manager().launch_app(kw.get("app_name") or kw.get("name") or kw.get("path") or "")[1]
+        )
+        self.tools["windows_process_list"] = AgentTool(
+            name="windows_process_list",
+            description="List top active Windows processes by memory and CPU usage (args: limit)",
+            handler=lambda **kw: str(get_windows_app_manager().list_active_processes(limit=int(kw.get("limit", 15))))
+        )
+        self.tools["windows_process_kill"] = AgentTool(
+            name="windows_process_kill",
+            description="Safely terminate a Windows process by name or PID (args: pid or name)",
+            handler=lambda **kw: get_windows_app_manager().terminate_process(kw.get("pid") or kw.get("name") or "")[1],
+            requires_approval=True
+        )
 
     def plan_mission(self, user_goal: str) -> List[Dict[str, Any]]:
         """
@@ -117,9 +163,9 @@ class AgentEngine:
             return steps
 
         # 2. Research / study goal
-        if any(k in goal_lower for k in ["research", "study", "summarize", "document", "learn", "facts about"]):
+        if any(k in goal_lower for k in ["research", "study", "summarize", "document", "learn", "facts about", "search web", "investigate"]):
             # Extract topic
-            topic = re.sub(r"^(research|study|find facts about|write about)\s+", "", user_goal, flags=re.I).strip()
+            topic = re.sub(r"^(research|study|find facts about|write about|search web for|investigate)\s+", "", user_goal, flags=re.I).strip()
             topic = topic or "Autonomous Inquiry"
 
             steps.append({
@@ -130,16 +176,32 @@ class AgentEngine:
             })
             steps.append({
                 "step": 2,
+                "tool": "web_search",
+                "args": {"query": topic, "max_results": 3},
+                "desc": f"Search public internet sources for '{topic}'"
+            })
+            steps.append({
+                "step": 3,
+                "tool": "workspace_write",
+                "args": {
+                    "subfolder": "notes",
+                    "filename": f"research_{re.sub(r'[^\w]', '_', topic[:20]).lower()}.txt",
+                    "content": f"Autonomous Research Log\nTopic: {topic}\nConducted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                },
+                "desc": f"Create research manifest in dedicated workspace"
+            })
+            steps.append({
+                "step": 4,
                 "tool": "note_create",
                 "args": {
                     "title": f"Autonomous Research: {topic.title()}",
-                    "content": f"# Autonomous Brief: {topic.title()}\n\n*Conducted autonomously by NOVA OS Intelligence Agent.*\n\n### Executive Summary\n- Topic: {topic}\n- Status: Ingested and structured.\n- Primary Focus: Verified knowledge vault synthesis.",
+                    "content": f"# Autonomous Brief: {topic.title()}\n\n*Conducted autonomously by NOVA OS Research Agent.*\n\n### Executive Summary\n- Topic: {topic}\n- Status: Ingested and structured.\n- Primary Focus: Verified multi-source synthesis.",
                     "tags": "research, ai-agent, notes"
                 },
                 "desc": f"Draft structured research briefing in NovaPad"
             })
             steps.append({
-                "step": 3,
+                "step": 5,
                 "tool": "reminder_create",
                 "args": {
                     "title": f"Deep-dive: {topic.title()}",

@@ -11,6 +11,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
+from tests.test_research_agent import run_all_research_tests
+from tests.test_mandatory_features import TestMandatoryOSFeatures
+from tests.test_advanced_100_features import TestAdvanced100Features
+from tests.test_os_matrix import TestOSKernelMatrix
+
 # Use offscreen platform for Qt tests so no physical display is required in headless test runs
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -996,6 +1001,108 @@ def test_cyber_v2_features():
 
     print("  -> Cyber V2 upgrades tests PASSED.")
 
+def test_pajama_language_and_studio():
+    print("[TEST] Testing Pajama Language (.pj), AI Assistant & Studio IDE...")
+    from nova.pajama.runtime import execute_pajama
+    from nova.pajama.parser import parse_pajama
+    from nova.pajama.ai_assistant import PajamaAIAssistant
+    from nova.ui.widgets.pajama_studio import PajamaStudioWidget
+
+    # 1. Zero-Frustration Auto Coercion & Math
+    script = (
+        'count = 10\n'
+        'increase count by 5\n'
+        'say "Score: " + count\n'
+        'routine mult(x): give x * 2\n'
+        'say "Doubled: " + mult(count)\n'
+        'play "chime"\n'
+    )
+    output = execute_pajama(script)
+    assert "Score: 15" in output, f"Unexpected output: {output}"
+    assert "Doubled: 30" in output, f"Unexpected output: {output}"
+
+    # 2. AI Assistant Synthesis & Explanation
+    ai = PajamaAIAssistant()
+    gen_code = ai._generate_offline_fallback("Monitor RAM and flush if over 75%")
+    assert "ram" in gen_code.lower()
+    assert "flush" in gen_code.lower()
+    gen_out = execute_pajama(gen_code)
+    assert len(gen_out) > 0
+
+    fixed = ai._generate_offline_fix("def run():\n    print('Hello')\n    return 42", "syntax")
+    assert "routine" in fixed
+    assert "say" in fixed
+    assert "give" in fixed
+
+    # 3. Studio Widget & Syntax Highlighter
+    studio = PajamaStudioWidget()
+    assert studio.editor is not None
+    assert studio.console is not None
+    assert len(studio.editor.toPlainText()) > 0
+    studio.cleanup()
+    studio.hide()
+
+    # 4. Agent Engine tool registration
+    from nova.agent_engine import AgentEngine
+    engine = AgentEngine()
+    assert "pajama_run" in engine.tools
+    p_res = engine.execute_tool("pajama_run", {"code": "say 'Agent pajama test'"})
+    assert p_res.get("success") is True
+    assert "Agent pajama test" in str(p_res.get("result"))
+
+    print("  -> Pajama Language & Studio tests PASSED.")
+
+def test_windows_applications_bridge():
+    print("[TEST] Testing Windows Applications Bridge & Subsystem...")
+    from nova.windows_apps import get_windows_app_manager
+    from nova.ui.widgets.windows_app_hub import WindowsAppHubWidget
+    from nova.pajama.runtime import execute_pajama
+
+    mgr = get_windows_app_manager()
+    apps = mgr.discover_apps()
+    assert len(apps) >= 10, f"Expected at least 10 apps, got {len(apps)}"
+    assert mgr.is_process_running("explorer") or mgr.is_process_running("python")
+
+    # Pajama test
+    out = execute_pajama('if running "python": say "PY_OK"')
+    assert "PY_OK" in out
+
+    # UI test
+    hub = WindowsAppHubWidget()
+    assert hub.tabs.count() == 2
+    hub.cleanup()
+    hub.hide()
+
+    print("  -> Windows Applications Bridge tests PASSED.")
+
+def test_mandatory_os_features():
+    print("[TEST] Testing Mandatory OS Features and AI Superpowers (28 Suites)...")
+    import unittest
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestMandatoryOSFeatures)
+    runner = unittest.TextTestRunner(verbosity=0)
+    result = runner.run(suite)
+    assert result.wasSuccessful(), f"Mandatory OS features failed: {len(result.failures)} failures, {len(result.errors)} errors"
+    print("  -> All 28 Mandatory OS Features & AI Superpowers PASSED.")
+
+def test_advanced_100_features():
+    print("[TEST] Testing Advanced 100 Features & Cyber Subsystems (8 Suites)...")
+    import unittest
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestAdvanced100Features)
+    runner = unittest.TextTestRunner(verbosity=0)
+    result = runner.run(suite)
+    assert result.wasSuccessful(), f"Advanced 100 features failed: {len(result.failures)} failures, {len(result.errors)} errors"
+    print("  -> All Advanced 100 Features & Cyber Subsystems PASSED.")
+
+def test_os_matrix_architecture():
+    print("[TEST] Testing 100,000-Primitive Kernel Matrix Architecture (12 Tests)...")
+    import unittest
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestOSKernelMatrix)
+    runner = unittest.TextTestRunner(verbosity=0)
+    result = runner.run(suite)
+    assert result.wasSuccessful(), f"Kernel matrix architecture failed: {len(result.failures)} failures, {len(result.errors)} errors"
+    print("  -> All 10 Domains & 100,000 Primitives PASSED.")
+
+
 def run_all():
     print("=== STARTING NOVA OS VERIFICATION SUITE ===")
     test_database()
@@ -1018,8 +1125,16 @@ def run_all():
     test_crash_prevention_and_font_handling()
     test_ui_instantiation()
     test_cyber_v2_features()
+    test_pajama_language_and_studio()
+    test_windows_applications_bridge()
+    test_mandatory_os_features()
+    test_advanced_100_features()
+    test_os_matrix_architecture()
+    run_all_research_tests()
     print("=== ALL NOVA OS TESTS COMPLETED SUCCESSFULLY ===")
 
 if __name__ == "__main__":
     run_all()
-    sys.exit(0)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)

@@ -1,0 +1,4 @@
+# NOVA OS Live Safety Rule:
+# Prevent auto-mounting or accidental modification of host Windows internal NVMe and SATA drives.
+KERNEL=="nvme[0-9]*n[0-9]*", ENV{UDISKS_IGNORE}="1"
+KERNEL=="sd[a-z]*", ENV{UDISKS_IGNORE}="1"

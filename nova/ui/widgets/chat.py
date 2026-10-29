@@ -233,8 +233,19 @@ class ChatWidget(QWidget):
         refresh_btn.clicked.connect(lambda: self.load_models(force=True))
         toolbar.addWidget(refresh_btn)
 
+        # Session Selector Dropdown
+        session_lbl = QLabel("Session:")
+        session_lbl.setStyleSheet("color: #EAF4FF; font-weight: bold; font-size: 11px;")
+        toolbar.addWidget(session_lbl)
+        self.session_combo = QComboBox()
+        self.session_combo.setMinimumWidth(180)
+        self.session_combo.setToolTip("Switch between conversation threads")
+        self.session_combo.currentIndexChanged.connect(self._on_session_combo_changed)
+        toolbar.addWidget(self.session_combo)
+
         # New Session Button
         new_session_btn = QPushButton("+ New Chat")
+        new_session_btn.setToolTip("Start a fresh conversation thread")
         new_session_btn.clicked.connect(self.start_new_session)
         toolbar.addWidget(new_session_btn)
 
@@ -258,10 +269,11 @@ class ChatWidget(QWidget):
         chips_layout = QHBoxLayout()
         chips_layout.setSpacing(6)
         suggestions = [
-            "Diagnose system health",
-            "Show network status",
-            "Write a note about quantum AI",
-            "Safe terminal test"
+            "Summarize this webpage",
+            "Search the web for information",
+            "Help me write a document",
+            "Analyze this file",
+            "Diagnose system health"
         ]
         for s in suggestions:
             btn = QPushButton(s)
@@ -370,6 +382,31 @@ class ChatWidget(QWidget):
             self.model_combo.clear()
             self.model_combo.addItem("Ollama unreachable")
 
+    def _populate_sessions(self, target_id: Optional[int] = None):
+        if not hasattr(self, "session_combo"):
+            return
+        sessions = get_chat_sessions()
+        self.session_combo.blockSignals(True)
+        self.session_combo.clear()
+        target_index = 0
+        current_target = target_id if target_id is not None else self.active_session_id
+        for idx, s in enumerate(sessions):
+            title = s.get("title", f"Session #{s['id']}")
+            display = f"#{s['id']} {title[:20]}"
+            self.session_combo.addItem(display, s["id"])
+            if s["id"] == current_target:
+                target_index = idx
+        if self.session_combo.count() > 0:
+            self.session_combo.setCurrentIndex(target_index)
+        self.session_combo.blockSignals(False)
+
+    def _on_session_combo_changed(self, index: int):
+        if index < 0:
+            return
+        session_id = self.session_combo.itemData(index)
+        if session_id and session_id != self.active_session_id:
+            self.switch_to_session(session_id, update_combo=False)
+
     def load_or_create_session(self):
         sessions = get_chat_sessions()
         if sessions:
@@ -381,8 +418,10 @@ class ChatWidget(QWidget):
         session_id = create_chat_session("Transmission " + str(len(get_chat_sessions()) + 1))
         self.switch_to_session(session_id)
 
-    def switch_to_session(self, session_id: int):
+    def switch_to_session(self, session_id: int, update_combo: bool = True):
         self.active_session_id = session_id
+        if update_combo:
+            self._populate_sessions(session_id)
         # Clear UI bubbles
         while self.messages_layout.count() > 1:
             item = self.messages_layout.takeAt(0)
@@ -457,6 +496,7 @@ class ChatWidget(QWidget):
         if len(msgs) <= 3:
             title = prompt[:25] + ("..." if len(prompt) > 25 else "")
             update_chat_session_title(self.active_session_id, title)
+            self._populate_sessions(self.active_session_id)
 
         # Prepare assistant bubble
         self.current_bubble = MessageBubble("assistant", "Thinking...", selected_model, parent_chat=self)
@@ -524,10 +564,16 @@ class ChatWidget(QWidget):
             pass
 
     def on_stop_clicked(self):
-        if self.worker:
+        if self.worker and self.worker.isRunning():
             self.worker.cancel()
             self.stop_btn.setEnabled(False)
             self.send_btn.setEnabled(True)
+            if self.current_bubble:
+                text = (self.accumulated_text + " [Generation Halted by User]").strip()
+                self.current_bubble.update_text(text)
+                if self.active_session_id:
+                    add_chat_message(self.active_session_id, "assistant", text, self.model_combo.currentText())
+                self.current_bubble = None
         if self.voice:
             self.voice.stop_speaking()
 

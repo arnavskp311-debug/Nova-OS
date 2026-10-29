@@ -16,11 +16,11 @@ class NotificationToast(QFrame):
     closed = Signal(object)
 
     COLORS = {
-        "info": "#00f0ff",     # Cyan
-        "success": "#00ff88",  # Green
-        "warning": "#ffaa00",  # Amber
-        "error": "#ff2a55",    # Red
-        "reminder": "#b026ff"  # Violet
+        "info": "#00d2e6",     # Ice-Cyan
+        "success": "#10b981",  # Emerald
+        "warning": "#f59e0b",  # Amber
+        "error": "#ef4444",    # Crimson
+        "reminder": "#a855f7"  # Stellar Violet
     }
 
     ICONS = {

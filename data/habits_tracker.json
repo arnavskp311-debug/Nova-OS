@@ -1,0 +1,20 @@
+[
+  {
+    "id": "h1",
+    "name": "Code in Pajama Studio",
+    "streak": 7,
+    "completed_today": true
+  },
+  {
+    "id": "h2",
+    "name": "Run System Diagnostic Check",
+    "streak": 5,
+    "completed_today": true
+  },
+  {
+    "id": "h3",
+    "name": "Review Research Agent Dossier",
+    "streak": 3,
+    "completed_today": false
+  }
+]

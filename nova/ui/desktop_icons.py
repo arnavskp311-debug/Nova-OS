@@ -78,7 +78,7 @@ class DesktopIconWidget(QWidget):
                 font-size: 11px;
                 font-weight: 600;
                 background-color: rgba(9, 14, 26, 0.85);
-                border: 1px solid rgba(0, 240, 255, 0.25);
+                border: 1px solid rgba(0, 210, 230, 0.25);
                 border-radius: 4px;
                 padding: 2px 4px;
             }

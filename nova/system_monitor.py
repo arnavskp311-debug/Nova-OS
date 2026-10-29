@@ -272,6 +272,16 @@ class SystemMonitor:
         self._metrics_cache_time = curr_time
         return result
 
+    def get_metrics(self) -> Dict[str, Any]:
+        """Convenience telemetry metrics dictionary for fast desktop UI meters."""
+        rt = self.get_realtime_metrics()
+        return {
+            "cpu_percent": rt.get("cpu_percent", 0.0),
+            "ram_percent": rt.get("memory", {}).get("percent", 0.0),
+            "disk_percent": rt.get("disk", {}).get("percent", 0.0),
+            "realtime": rt
+        }
+
     def get_top_processes(self, limit: int = 12) -> List[Dict[str, Any]]:
         """
         Returns top active processes by real CPU utilization and RAM working set (MB).

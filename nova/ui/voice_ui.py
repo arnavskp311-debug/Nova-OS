@@ -88,9 +88,12 @@ class NovaVoiceOrbWidget(QWidget):
         elif self.state == "speaking":
             base_color = QColor(176, 38, 255)  # Neon Violet
             glow_color = QColor(176, 38, 255, 70)
-        elif self.state == "thinking":
+        elif self.state in ["thinking", "processing"]:
             base_color = QColor(0, 255, 136)   # Emerald Matrix
             glow_color = QColor(0, 255, 136, 60)
+        elif self.state in ["offline", "unavailable"]:
+            base_color = QColor(245, 158, 11)   # Solar Amber Warning
+            glow_color = QColor(245, 158, 11, 55)
         elif self.state == "error":
             base_color = QColor(255, 60, 90)   # Crimson Alert
             glow_color = QColor(255, 60, 90, 60)
@@ -488,8 +491,11 @@ class NovaVoiceHUD(QFrame):
         colors = {
             "idle": ("#94a3b8", "● IDLE"),
             "listening": ("#00f0ff", "● LISTENING"),
-            "thinking": ("#00ff88", "● THINKING..."),
+            "thinking": ("#00ff88", "● PROCESSING..."),
+            "processing": ("#00ff88", "● PROCESSING..."),
             "speaking": ("#b026ff", "● SPEAKING"),
+            "offline": ("#f59e0b", "● UNAVAILABLE / OFFLINE"),
+            "unavailable": ("#f59e0b", "● UNAVAILABLE / OFFLINE"),
             "error": ("#ff2a55", "● ALERT")
         }
         color, text = colors.get(state, ("#94a3b8", state.upper()))

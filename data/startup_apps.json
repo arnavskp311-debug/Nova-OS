@@ -1,0 +1,26 @@
+[
+  {
+    "id": "dashboard",
+    "name": "Telemetry Dashboard",
+    "enabled": true,
+    "desc": "Live hardware performance metrics"
+  },
+  {
+    "id": "chat",
+    "name": "NOVA AI Assistant",
+    "enabled": false,
+    "desc": "Local Ollama AI copilot"
+  },
+  {
+    "id": "pajama",
+    "name": "Pajama Studio IDE",
+    "enabled": false,
+    "desc": "Cyber coding environment"
+  },
+  {
+    "id": "calendar",
+    "name": "Calendar & Agendas",
+    "enabled": true,
+    "desc": "Daily reminders & scheduled alarms"
+  }
+]

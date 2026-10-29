@@ -186,28 +186,61 @@ class UniversalSearchDialog(QFrame):
 
         # 3. Search Applications
         app_list = [
-            ("browser", "🌐 NOVA Cyber Browser", "browser web internet chrome"),
-            ("dashboard", "📊 System Telemetry Dashboard", "cpu ram performance monitor hardware"),
-            ("chat", "🤖 NOVA AI Assistant", "ai ollama chat intelligence"),
-            ("notes", "📝 NovaPad Knowledge", "notes scratchpad vault markdown"),
-            ("terminal", "💻 Cyber Safe Terminal", "terminal cmd shell powershell"),
-            ("files", "📁 Sandbox File Explorer", "files storage logs backup disk"),
-            ("settings", "⚙ Control Center", "settings preferences themes accent backup"),
-            ("clipboard", "📋 Clipboard History", "clipboard copy paste snippets"),
-            ("reminders", "🔔 Reminders & Scheduler", "reminders alerts schedule"),
+            ("browser", "NOVA Cyber Browser", "browser web internet chrome"),
+            ("dashboard", "System Telemetry Dashboard", "cpu ram performance monitor hardware"),
+            ("chat", "NOVA AI Assistant", "ai ollama chat intelligence"),
+            ("notes", "NovaPad Knowledge", "notes scratchpad vault markdown"),
+            ("terminal", "Cyber Safe Terminal", "terminal cmd shell powershell"),
+            ("files", "Sandbox File Explorer", "files storage logs backup disk"),
+            ("settings", "Control Center & Settings", "settings preferences themes accent backup"),
+            ("clipboard", "Clipboard History", "clipboard copy paste snippets"),
+            ("reminders", "Reminders & Scheduler", "reminders alerts schedule"),
+            ("workspace", "Workspace Manager", "workspace profiles desktop dev research"),
         ]
         for app_id, title, keywords in app_list:
             if q_lower in title.lower() or any(q_lower in k for k in keywords.split()):
-                item = QListWidgetItem(f"App: {title}")
+                item = QListWidgetItem(f"[APP] ❖ {title}")
                 item.setData(Qt.UserRole, {"type": "app", "id": app_id})
                 self.results_list.addItem(item)
+
+        # 4. Search Supported Settings
+        settings_items = [
+            ("settings", "Appearance & Space Themes", "theme dark light accent color wallpaper"),
+            ("settings", "Display & Accessibility", "display scaling contrast font reduced motion"),
+            ("settings", "Local AI Endpoint & Model Selection", "ollama model host llm ai"),
+            ("settings", "Speech & Voice Configuration", "voice kokoro piper tts speech mic"),
+            ("settings", "Hardware & Performance Modes", "performance balanced battery saver cpu ram"),
+            ("settings", "Data Backup & Integrity", "backup restore snapshot database"),
+            ("settings", "System Diagnostics & Logs", "diagnostics logs event viewer error"),
+        ]
+        for target_app, title, kw in settings_items:
+            if q_lower in title.lower() or any(q_lower in k for k in kw.split()):
+                item = QListWidgetItem(f"[SETTING] ⚙ {title}")
+                item.setData(Qt.UserRole, {"type": "app", "id": target_app})
+                self.results_list.addItem(item)
+
+        # 5. Search Permitted Workspace Files
+        try:
+            from nova.config import WORKSPACE_DIR
+            if WORKSPACE_DIR.exists():
+                count = 0
+                for f in WORKSPACE_DIR.rglob("*"):
+                    if f.is_file() and q_lower in f.name.lower():
+                        item = QListWidgetItem(f"[FILE] 📄 {f.name}   •   ({f.parent.name})")
+                        item.setData(Qt.UserRole, {"type": "file", "path": str(f)})
+                        self.results_list.addItem(item)
+                        count += 1
+                        if count >= 4:
+                            break
+        except Exception:
+            pass
 
         # 4. Search Notes
         try:
             notes = get_notes()
             for n in notes:
                 if q_lower in n["title"].lower() or q_lower in n["content"].lower():
-                    item = QListWidgetItem(f"📝 Note: {n['title']}")
+                    item = QListWidgetItem(f"[NOTE] 📝 {n['title']}")
                     item.setData(Qt.UserRole, {"type": "app", "id": "notes", "note_id": n["id"]})
                     self.results_list.addItem(item)
         except Exception:
@@ -217,17 +250,22 @@ class UniversalSearchDialog(QFrame):
         try:
             bmarks = get_browser_bookmarks(query)
             for b in bmarks[:4]:
-                item = QListWidgetItem(f"⭐ Bookmark: {b['title']} ({b['url']})")
+                item = QListWidgetItem(f"[WEB] ⭐ {b['title']} ({b['url']})")
                 item.setData(Qt.UserRole, {"type": "web", "url": b["url"]})
                 self.results_list.addItem(item)
 
             history = get_browser_history(query, limit=3)
             for h in history:
-                item = QListWidgetItem(f"🕒 History: {h['title']} ({h['url']})")
+                item = QListWidgetItem(f"[WEB] 🕒 {h['title']} ({h['url']})")
                 item.setData(Qt.UserRole, {"type": "web", "url": h["url"]})
                 self.results_list.addItem(item)
         except Exception:
             pass
+
+        # 6. Web Search Fallback Option
+        web_item = QListWidgetItem(f"[WEB] 🌐 Search DuckDuckGo for '{query}'")
+        web_item.setData(Qt.UserRole, {"type": "web", "url": f"https://duckduckgo.com/?q={query}"})
+        self.results_list.addItem(web_item)
 
         if self.results_list.count() > 0:
             self.results_list.setCurrentRow(0)
@@ -254,6 +292,9 @@ class UniversalSearchDialog(QFrame):
 
         elif data_type == "web":
             self.app_launch_requested.emit("browser", {"url": data["url"]})
+
+        elif data_type == "file":
+            self.app_launch_requested.emit("files", {"path": data.get("path")})
 
         elif data_type == "directive":
             action = data.get("action")

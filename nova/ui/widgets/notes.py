@@ -332,6 +332,15 @@ class NotesWidget(QWidget):
     def on_note_selected(self, row: int):
         if row < 0:
             return
+        # Auto-save currently active note before switching to prevent data loss
+        if self.active_note_id:
+            try:
+                title = self.title_input.text().strip() or "Untitled Note"
+                tags = self.tags_input.text().strip()
+                content = self.content_edit.toPlainText()
+                update_note(self.active_note_id, title, content, tags)
+            except Exception:
+                pass
         item = self.notes_list.item(row)
         if not item:
             return

@@ -45,14 +45,27 @@ class MemoryOptimizer:
             p = psutil.Process(os.getpid())
             mem_before = p.memory_info().rss / (1024 * 1024)
 
-            # Windows API: SetProcessWorkingSetSize(GetCurrentProcess(), -1, -1)
+            # Windows API: SetProcessWorkingSetSize / EmptyWorkingSet
             # Flushes unused pages from physical RAM
             handle = ctypes.windll.kernel32.GetCurrentProcess()
-            res = ctypes.windll.kernel32.SetProcessWorkingSetSize(
-                handle,
-                ctypes.c_size_t(-1),
-                ctypes.c_size_t(-1)
-            )
+            res = 0
+            try:
+                psapi = ctypes.windll.psapi
+                psapi.EmptyWorkingSet.argtypes = [ctypes.c_void_p]
+                psapi.EmptyWorkingSet.restype = ctypes.c_int
+                res = psapi.EmptyWorkingSet(handle)
+            except Exception:
+                res = 0
+
+            if not res:
+                kernel32 = ctypes.windll.kernel32
+                kernel32.SetProcessWorkingSetSize.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
+                kernel32.SetProcessWorkingSetSize.restype = ctypes.c_int
+                res = kernel32.SetProcessWorkingSetSize(
+                    handle,
+                    ctypes.c_size_t(-1),
+                    ctypes.c_size_t(-1)
+                )
 
             mem_after = p.memory_info().rss / (1024 * 1024)
             freed = max(0.0, mem_before - mem_after)
@@ -81,6 +94,8 @@ class MemoryOptimizer:
         if self._is_windows and include_child_processes:
             try:
                 psapi = ctypes.windll.psapi
+                psapi.EmptyWorkingSet.argtypes = [ctypes.c_void_p]
+                psapi.EmptyWorkingSet.restype = ctypes.c_int
                 kernel32 = ctypes.windll.kernel32
                 current_pid = os.getpid()
 

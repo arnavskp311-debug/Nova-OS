@@ -1,0 +1,26 @@
+{
+  "active_user": "nova_admin",
+  "users": [
+    {
+      "username": "nova_admin",
+      "display_name": "Nova Administrator",
+      "role": "admin",
+      "avatar": "\ud83d\udee1\ufe0f",
+      "pin": "0000"
+    },
+    {
+      "username": "cyber_dev",
+      "display_name": "Cyber Developer",
+      "role": "standard",
+      "avatar": "\u26a1",
+      "pin": "1234"
+    },
+    {
+      "username": "guest",
+      "display_name": "Guest Explorer",
+      "role": "guest",
+      "avatar": "\ud83d\udc64",
+      "pin": ""
+    }
+  ]
+}

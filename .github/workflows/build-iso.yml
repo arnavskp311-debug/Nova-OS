@@ -1,0 +1,120 @@
+name: Build Nova OS Standalone Live Linux ISO
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'nova/**'
+      - 'data/**'
+      - 'scripts/**'
+      - 'main.py'
+      - 'requirements.txt'
+      - '.github/workflows/build-iso.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish as official GitHub Release'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release Tag (e.g. v1.1.0-live)'
+        required: false
+        type: string
+        default: 'v1.1.0-live'
+
+jobs:
+  build-live-iso:
+    name: Build NovaOS-Live-x86_64.iso (Debian 12 Bookworm)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free Disk Space on Runner
+        run: |
+          echo "[*] Maximizing build partition storage..."
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/local/share/chromium
+          sudo docker system prune -af || true
+          df -h /
+
+      - name: Install ISO Creation & Debootstrap Tooling
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-common \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            coreutils \
+            wget \
+            curl
+
+      - name: Build Bootable Live Linux ISO
+        run: |
+          sudo bash scripts/build_iso.sh
+
+      - name: Verify ISO Artifacts & Checksums
+        run: |
+          echo "=== ISO GENERATION VERIFICATION ==="
+          ls -lh NovaOS-Live-x86_64.iso*
+          cat NovaOS-Live-x86_64.iso.sha256
+
+      - name: Upload ISO Artifact to GitHub Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaOS-Live-x86_64-ISO
+          path: |
+            NovaOS-Live-x86_64.iso
+            NovaOS-Live-x86_64.iso.sha256
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          name: "NOVA OS Standalone Live Edition (${{ github.event.inputs.release_tag || github.ref_name }})"
+          body: |
+            ## 🚀 NOVA OS Standalone Live Linux Edition (x86_64)
+
+            This is the standalone, bootable Live Linux ISO of **NOVA OS**, engineered for resource-constrained hardware (Intel Core i3 / $\le$ 4 GB RAM / 256 GB SSD).
+
+            ### 💻 Technical Specifications:
+            - **Base Operating System:** Debian 12 ("Bookworm") amd64 Minimal
+            - **Window Management:** Ultra-lightweight Openbox on X11 (< 25 MB RAM)
+            - **Target Idle Footprint:** Under 220 MB RAM at boot
+            - **Hardware Acceleration:** Native Mesa drivers for Intel HD/UHD graphics
+            - **Audio Pipeline:** PipeWire + ALSA with low-latency streaming
+            - **Local AI:** Pre-configured CPU-only Ollama inference daemon (`OLLAMA_LLM_LIBRARY=cpu`)
+            - **Boot Support:** Dual Hybrid Boot (Modern UEFI + Legacy BIOS)
+            - **Zero Host Risk:** Embedded `udev` protection rules prevent auto-mounting host Windows partitions
+
+            ### 📦 Files & Verification:
+            - **Image:** `NovaOS-Live-x86_64.iso`
+            - **SHA-256 Checksum:** See `NovaOS-Live-x86_64.iso.sha256`
+
+            ### ⚡ How to Flash & Boot:
+            - **Windows / Mac:** Use [Rufus](https://rufus.ie/) (Select *DD Image mode* or *ISO mode*) or [BalenaEtcher](https://etcher.balena.io/).
+            - **Linux Terminal:** `sudo dd if=NovaOS-Live-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync`
+            - Insert USB into target machine, press boot menu key (`F12`, `F11`, `F9`, or `Esc`), and select the USB drive.
+          files: |
+            NovaOS-Live-x86_64.iso
+            NovaOS-Live-x86_64.iso.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

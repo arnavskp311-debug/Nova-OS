@@ -1,14 +1,17 @@
 """
 Futuristic Window Container & Manager for NOVA OS.
-Provides draggable, resizable, floating OS-style window frames with cyber controls.
+Provides draggable, resizable, floating OS-style window frames with cyber controls
+and Aero edge window snapping (Left, Right, Maximize, Corner Quadrants).
 """
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QSizeGrip
 )
-from PySide6.QtCore import Qt, QPoint, Signal
+from PySide6.QtCore import Qt, QPoint, Signal, QRect
 from PySide6.QtGui import QMouseEvent
+
+from nova.ui.window_snapping import WindowSnapper, SnapZone, SnapGuide
 
 class WindowFrame(QFrame):
     window_closed = Signal(object)
@@ -23,6 +26,8 @@ class WindowFrame(QFrame):
         self.is_maximized = False
         self.normal_geometry = None
         self._drag_pos = None
+        self._snap_guide: Optional[SnapGuide] = None
+        self._active_snap_zone: str = SnapZone.NONE
 
         self.setup_ui()
 
@@ -30,9 +35,9 @@ class WindowFrame(QFrame):
         self.setObjectName("WindowFrame")
         self.setStyleSheet("""
             QFrame#WindowFrame {
-                background-color: #090e1a;
-                border: 1px solid rgba(0, 240, 255, 0.35);
-                border-radius: 10px;
+                background-color: #09101f;
+                border: 1px solid rgba(0, 210, 230, 0.25);
+                border-radius: 8px;
             }
         """)
         self.setMinimumSize(420, 320)
@@ -47,10 +52,10 @@ class WindowFrame(QFrame):
         self.title_bar.setFixedHeight(34)
         self.title_bar.setStyleSheet("""
             QFrame#TitleBar {
-                background-color: #0c1222;
-                border-top-left-radius: 9px;
-                border-top-right-radius: 9px;
-                border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+                background-color: #0e172b;
+                border-top-left-radius: 7px;
+                border-top-right-radius: 7px;
+                border-bottom: 1px solid rgba(0, 210, 230, 0.18);
             }
         """)
 
@@ -140,16 +145,37 @@ class WindowFrame(QFrame):
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        if self._drag_pos and event.buttons() == Qt.LeftButton and not self.is_maximized:
+        if self._drag_pos and event.buttons() == Qt.LeftButton:
             parent = self.parentWidget()
+            if self.is_maximized:
+                # If dragging while maximized, restore normal size and anchor to cursor
+                if self.normal_geometry:
+                    self.setGeometry(self.normal_geometry)
+                self.is_maximized = False
+                self.max_btn.setText("▢")
+
             new_pos = event.globalPosition().toPoint() - self._drag_pos
             if parent:
-                # Constrain inside desktop area
-                max_x = parent.width() - 80
-                max_y = parent.height() - 80
-                new_x = max(0, min(new_pos.x(), max_x))
+                max_x = parent.width() - 40
+                max_y = parent.height() - 40
+                new_x = max(-self.width() + 40, min(new_pos.x(), max_x))
                 new_y = max(0, min(new_pos.y(), max_y))
                 self.move(new_x, new_y)
+
+                # Check edge snapping zone
+                zone = WindowSnapper.detect_snap_zone(self.geometry(), parent.rect())
+                self._active_snap_zone = zone
+                if zone != SnapZone.NONE:
+                    guide_geom = WindowSnapper.get_snap_geometry(zone, parent.rect())
+                    if guide_geom:
+                        if not self._snap_guide:
+                            self._snap_guide = SnapGuide(parent)
+                        self._snap_guide.setGeometry(guide_geom)
+                        self._snap_guide.show()
+                        self._snap_guide.raise_()
+                else:
+                    if self._snap_guide:
+                        self._snap_guide.hide()
             else:
                 self.move(new_pos)
             event.accept()
@@ -157,28 +183,65 @@ class WindowFrame(QFrame):
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        self._drag_pos = None
+        if self._drag_pos:
+            self._drag_pos = None
+            if self._snap_guide:
+                self._snap_guide.hide()
+
+            parent = self.parentWidget()
+            if parent and self._active_snap_zone != SnapZone.NONE:
+                snap_geom = WindowSnapper.get_snap_geometry(self._active_snap_zone, parent.rect())
+                if snap_geom:
+                    if not self.normal_geometry:
+                        self.normal_geometry = self.geometry()
+                    self.setGeometry(snap_geom)
+                    if self._active_snap_zone == SnapZone.MAXIMIZE:
+                        self.is_maximized = True
+                        self.max_btn.setText("❐")
+                self._active_snap_zone = SnapZone.NONE
+
         super().mouseReleaseEvent(event)
 
     def on_minimize(self):
         self.hide()
         self.window_minimized.emit(self)
 
-    def on_toggle_maximize(self):
+    def maximize_window(self):
         parent = self.parentWidget()
         if not parent:
             return
-
-        if not self.is_maximized:
+        if not self.is_maximized and self.geometry().width() > 0:
             self.normal_geometry = self.geometry()
-            self.setGeometry(0, 0, parent.width(), parent.height())
-            self.is_maximized = True
-            self.max_btn.setText("❐")
+        self.setGeometry(0, 0, parent.width(), parent.height())
+        self.is_maximized = True
+        self.max_btn.setText("❐")
+        self.max_btn.setToolTip("Restore Window (Esc)")
+
+    def restore_window(self):
+        parent = self.parentWidget()
+        if not self.is_maximized:
+            return
+        if self.normal_geometry and parent:
+            gw = min(self.normal_geometry.width(), max(420, parent.width() - 40))
+            gh = min(self.normal_geometry.height(), max(320, parent.height() - 40))
+            gx = max(20, min(self.normal_geometry.x(), max(20, parent.width() - gw - 20)))
+            gy = max(20, min(self.normal_geometry.y(), max(20, parent.height() - gh - 20)))
+            self.setGeometry(gx, gy, gw, gh)
+        elif parent:
+            gw = min(920, max(420, parent.width() - 80))
+            gh = min(680, max(320, parent.height() - 80))
+            gx = max(20, (parent.width() - gw) // 2)
+            gy = max(20, (parent.height() - gh) // 2)
+            self.setGeometry(gx, gy, gw, gh)
+        self.is_maximized = False
+        self.max_btn.setText("▢")
+        self.max_btn.setToolTip("Maximize Window")
+
+    def on_toggle_maximize(self):
+        if not self.is_maximized:
+            self.maximize_window()
         else:
-            if self.normal_geometry:
-                self.setGeometry(self.normal_geometry)
-            self.is_maximized = False
-            self.max_btn.setText("▢")
+            self.restore_window()
 
     def on_close(self):
         self.hide()

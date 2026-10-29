@@ -1,0 +1,17 @@
+{
+  ".pj": "pajama",
+  ".txt": "notes",
+  ".md": "notes",
+  ".log": "notes",
+  ".py": "pajama",
+  ".json": "notes",
+  ".csv": "notes",
+  ".png": "fileviewer",
+  ".jpg": "fileviewer",
+  ".jpeg": "fileviewer",
+  ".gif": "fileviewer",
+  ".html": "browser",
+  ".htm": "browser",
+  ".url": "browser",
+  ".pdf": "browser"
+}

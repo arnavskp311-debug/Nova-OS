@@ -9,19 +9,33 @@ from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 from nova.config import ACCENT_COLORS, DEFAULT_ACCENT
 
-# Centralized High-Contrast Text & Palette Constants
-COLOR_PRIMARY_TEXT = "#EAF4FF"     # Crisp, luminous off-white with cyan tint for primary body & titles
-COLOR_SECONDARY_TEXT = "#A9BCD4"   # Highly legible muted steel blue for labels, subtitles, & metadata
-COLOR_INPUT_TEXT = "#EAF4FF"       # Crisp white-blue for active text inputs
-COLOR_PLACEHOLDER_TEXT = "#8497B0" # Readable placeholder slate
-COLOR_DISABLED_TEXT = "#718096"    # Clear distinguishable muted slate for disabled states
-COLOR_DARK_SURFACE = "#080A10"     # Foundation desktop surface
-COLOR_PANEL_SURFACE = "#090E1A"    # Window & container surface
-COLOR_CARD_SURFACE = "#0D1527"     # Card & section surface
-COLOR_BUTTON_SURFACE = "#141B2D"   # Neutral button base
-COLOR_INPUT_SURFACE = "#0A0E19"    # Input box background
-COLOR_SELECTION_BG = "#0052CC"     # High-contrast deep cyber blue selection
+# Centralized Space-Themed High-Contrast Text & Palette Constants
+COLOR_PRIMARY_TEXT = "#F0F6FC"     # Crisp, high-contrast celestial white
+COLOR_SECONDARY_TEXT = "#94A3B8"   # Readable muted cosmic slate for labels & metadata
+COLOR_INPUT_TEXT = "#F0F6FC"       # Crisp white for active text inputs
+COLOR_PLACEHOLDER_TEXT = "#64748B" # Muted slate for input placeholders
+COLOR_DISABLED_TEXT = "#475569"    # Distinguishable muted slate for disabled controls
+COLOR_DARK_SURFACE = "#060A14"     # Deep navy desktop foundation
+COLOR_PANEL_SURFACE = "#09101F"    # Dark blue window & container surface
+COLOR_CARD_SURFACE = "#0E172B"     # Card & section surface
+COLOR_BUTTON_SURFACE = "#131E35"   # Neutral button base
+COLOR_INPUT_SURFACE = "#080D1A"    # Input box background
+COLOR_SELECTION_BG = "#0284C7"     # Deep celestial blue selection
 COLOR_SELECTION_FG = "#FFFFFF"     # High-contrast pure white text selection
+COLOR_ACCENT = "#00D2E6"           # Restrained ice-cyan accent
+COLOR_SUCCESS = "#10B981"          # Semantic emerald success
+COLOR_WARNING = "#F59E0B"          # Semantic amber warning
+COLOR_ERROR = "#EF4444"            # Semantic crimson error
+
+# Centralized Typography Tokens
+FONT_FAMILY_PRIMARY = "'Segoe UI', 'SF Pro Display', 'Roboto', 'Helvetica Neue', sans-serif"
+FONT_FAMILY_CODE = "'Cascadia Code', 'Consolas', 'Courier New', monospace"
+FONT_SIZE_DISPLAY = 18
+FONT_SIZE_TITLE = 14
+FONT_SIZE_SUBTITLE = 12
+FONT_SIZE_BODY = 11
+FONT_SIZE_CAPTION = 9
+FONT_SIZE_CODE = 10
 
 
 def validate_font_size(size: Any, default: int = 11, min_size: int = 6, max_size: int = 72) -> int:
